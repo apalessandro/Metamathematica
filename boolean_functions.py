@@ -463,14 +463,47 @@ def export_to_html(
         Width of visualization area.
     notebook:
         If True, configure for Jupyter notebook display.
-    max_nodes:
-        Maximum nodes to render (default 1000). Warns if exceeded.
     """
     try:
         from pyvis.network import Network
     except ImportError:
         raise ImportError(
             "pyvis is required for export_to_html; install via 'pip install pyvis'."
+        )
+
+    # Limit graph size by sampling if too large
+    max_nodes = 1000
+    num_nodes = g.number_of_nodes()
+    if num_nodes > max_nodes:
+        print(
+            f"⚠️  Graph has {num_nodes} nodes, limiting to {max_nodes} for visualization"
+        )
+        # Create subgraph with priority: axioms > entailed > tautologies > others
+        priority_nodes = []
+
+        # Always include AXIOMS meta-node
+        if "AXIOMS" in g.nodes:
+            priority_nodes.append("AXIOMS")
+
+        # Sort by priority
+        for node, data in sorted(
+            g.nodes(data=True),
+            key=lambda x: (
+                0
+                if x[1].get("is_axiom")
+                else 1
+                if x[1].get("entailed")
+                else 2
+                if x[1].get("tautology")
+                else 3
+            ),
+        ):
+            if node != "AXIOMS" and len(priority_nodes) < max_nodes:
+                priority_nodes.append(node)
+
+        g = g.subgraph(priority_nodes).copy()
+        print(
+            f"   Showing {len(priority_nodes)} highest-priority nodes (axioms & entailed formulas)"
         )
 
     net = Network(height=height, width=width, directed=True, notebook=notebook)
