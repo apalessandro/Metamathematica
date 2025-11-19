@@ -545,11 +545,10 @@ def export_to_html(
 
     # Add edges with labels and colors
     edge_color_map = {
-        "entailed": "#34495E",  # dark gray-blue - general entailment
         "MP": "#E91E63",  # hot pink - modus ponens
         "MT": "#9C27B0",  # deep purple - modus tollens
         "DS": "#FF9800",  # amber - disjunctive syllogism
-        "HS": "#00BCD4",  # cyan - hypothetical syllogism
+        "HS": "#34495E",  # dark gray-blue - hypothetical syllogism
         "∧E-L": "#3F51B5",  # indigo - conjunction elim left
         "∧E-R": "#795548",  # brown - conjunction elim right
     }
