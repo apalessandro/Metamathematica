@@ -1,13 +1,14 @@
 """
-Utility functions to enumerate and visualize boolean functions (logical statements)
-over n boolean variables.
+Propositional logic system with formula representation, enumeration, and visualization.
 
 Main features:
-- Generate all input combinations (truth table rows)
-- Enumerate all boolean functions as output vectors
-- Convert output vectors to DNF expressions
-- Build a matrix of many functions for visualization
-- Build a pandas DataFrame truth table for a single function
+- Formula AST: Var, Const, Not, And, Or, Implies with evaluation and variable extraction
+- Formula enumeration: Generate formulas up to a given syntactic depth
+- Semantic entailment: Check if axioms semantically entail a formula
+- Logic graphs: Build directed graphs showing inference relationships (modus ponens,
+  modus tollens, disjunctive syllogism, hypothetical syllogism, conjunction elimination)
+- Interactive visualization: Export graphs to HTML with pyvis or display with matplotlib
+- Boolean function utilities: Enumerate truth tables, convert to DNF, create truth table DataFrames
 """
 
 from __future__ import annotations
