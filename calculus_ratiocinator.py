@@ -527,8 +527,6 @@ def build_logic_graph(
             generation=0,
         )
 
-    print(f"🔵 Starting with {len(axioms)} axioms")
-
     # Iteratively apply rules
     for iteration in range(max_iterations):
         iteration_new: Set[Formula] = set()
@@ -770,19 +768,10 @@ def build_logic_graph(
                                 rule="conjunction_intro",
                             )
 
-        print(
-            f"🔵 Iteration {iteration + 1}: Generated {len(iteration_new)} new formulas"
-        )
-
         if not iteration_new:
-            print(f"✓ Fixed point reached at iteration {iteration + 1}")
             break
 
         knowledge_base.update(iteration_new)
-
-    print(
-        f"✓ Final knowledge base: {len(knowledge_base)} formulas, {len(g.nodes)} nodes, {len(g.edges)} edges"
-    )
     return g
 
 
