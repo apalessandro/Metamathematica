@@ -321,16 +321,6 @@ Some browsers block local file access. Try:
 - Firefox (usually works)
 - `python -m http.server` and browse to <http://localhost:8000>
 
-## Contributing
-
-This is an educational/research tool. Contributions welcome:
-
-- Additional inference rules (conjunction intro, biconditional elim, etc.)
-- CNF/NNF normalization
-- Resolution proofs
-- Natural deduction trees
-- Sequent calculus support
-
 ## License
 
 MIT License - See repository for details.
