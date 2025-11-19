@@ -20,6 +20,7 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 from pyvis.network import Network
+import os
 
 
 # ---------------------------------------------------------------------------
@@ -276,13 +277,11 @@ def build_logic_graph(
     var_names: Sequence[str],
     axioms: Sequence[Formula],
     max_depth: int = 2,
-    include_all: bool = True,
-    add_inference_edges: bool = True,
     max_nodes: int | None = None,
 ) -> Any:
     """Build a directed graph of formulas.
 
-    Nodes: all enumerated formulas (or only entailed ones if include_all=False).
+    Nodes: all enumerated formulas (or sampled subset if max_nodes is set).
     Node attributes:
         truth_vector: tuple of 0/1 over all valuations
         tautology: bool (true on all valuations)
@@ -297,7 +296,7 @@ def build_logic_graph(
     ----------
     max_nodes:
         If set, intelligently sample the graph to keep only the most interesting nodes.
-        Prioritizes: axioms, direct consequences, nodes with many connections, tautologies.
+        Prioritizes: axioms, entailed formulas, tautologies, simpler formulas.
     """
     formulas = enumerate_formulas(var_names, max_depth)
     axiom_set = {str(a) for a in axioms}
@@ -312,146 +311,114 @@ def build_logic_graph(
         tv = formula_truth_vector(f, var_names)
         taut = all(bit == 1 for bit in tv)
         ent = entails(axioms, f, var_names)
-        if include_all or ent:
-            g.add_node(
-                str(f),
-                truth_vector=tv,
-                tautology=taut,
-                entailed=ent,
-                is_axiom=str(f) in axiom_set,
-            )
-    # Edges from each axiom to entailed formulas (excluding axioms themselves)
-    for node, data in list(g.nodes(data=True)):
-        if data.get("entailed") and not data.get("is_axiom"):
-            # Add edge from each axiom to this entailed formula
-            for axiom in axioms:
-                axiom_str = str(axiom)
-                if axiom_str in g:
-                    g.add_edge(axiom_str, node, reason="entailed")
+        g.add_node(
+            str(f),
+            truth_vector=tv,
+            tautology=taut,
+            entailed=ent,
+            is_axiom=str(f) in axiom_set,
+        )
 
-    if add_inference_edges:
-        # Helper to ensure node exists in graph
-        def ensure_node(formula: Formula) -> str:
-            f_str = str(formula)
-            if f_str not in g:
-                f_tv = formula_truth_vector(formula, var_names)
-                g.add_node(
-                    f_str,
-                    truth_vector=f_tv,
-                    tautology=all(b == 1 for b in f_tv),
-                    entailed=entails(axioms, formula, var_names),
-                    is_axiom=f_str in axiom_set,
+    # Add inference edges only between nodes already in graph
+    for f in formulas:
+        # Modus Ponens: (A → B), A ⊢ B
+        if isinstance(f, Implies):
+            impl_str = str(f)
+            ant_str = str(f.antecedent)
+            cons_str = str(f.consequent)
+            if (
+                impl_str in g
+                and ant_str in g
+                and cons_str in g
+                and g.nodes[impl_str]["entailed"]
+                and g.nodes[ant_str]["entailed"]
+            ):
+                g.add_edge(ant_str, cons_str, reason="MP", rule="modus_ponens")
+
+        # Modus Tollens: (A → B), ¬B ⊢ ¬A
+        if isinstance(f, Implies):
+            impl_str = str(f)
+            not_b_str = str(Not(f.consequent))
+            not_a_str = str(Not(f.antecedent))
+            if (
+                impl_str in g
+                and not_b_str in g
+                and not_a_str in g
+                and g.nodes[impl_str]["entailed"]
+                and g.nodes[not_b_str]["entailed"]
+            ):
+                g.add_edge(not_b_str, not_a_str, reason="MT", rule="modus_tollens")
+
+        # Disjunctive Syllogism: (A ∨ B), ¬A ⊢ B
+        if isinstance(f, Or):
+            or_str = str(f)
+            not_a_str = str(Not(f.left))
+            b_str = str(f.right)
+            if (
+                or_str in g
+                and not_a_str in g
+                and b_str in g
+                and g.nodes[or_str]["entailed"]
+                and g.nodes[not_a_str]["entailed"]
+            ):
+                g.add_edge(not_a_str, b_str, reason="DS", rule="disjunctive_syllogism")
+
+            # Symmetric: (A ∨ B), ¬B ⊢ A
+            not_b_str = str(Not(f.right))
+            a_str = str(f.left)
+            if (
+                or_str in g
+                and not_b_str in g
+                and a_str in g
+                and g.nodes[or_str]["entailed"]
+                and g.nodes[not_b_str]["entailed"]
+            ):
+                g.add_edge(not_b_str, a_str, reason="DS", rule="disjunctive_syllogism")
+
+        # Hypothetical Syllogism: (A → B), (B → C) ⊢ (A → C)
+        for f2 in formulas:
+            if isinstance(f, Implies) and isinstance(f2, Implies):
+                if str(f.consequent) == str(f2.antecedent):
+                    impl1_str = str(f)
+                    impl2_str = str(f2)
+                    concl_str = str(Implies(f.antecedent, f2.consequent))
+                    if (
+                        impl1_str in g
+                        and impl2_str in g
+                        and concl_str in g
+                        and g.nodes[impl1_str]["entailed"]
+                        and g.nodes[impl2_str]["entailed"]
+                    ):
+                        g.add_edge(
+                            impl1_str,
+                            concl_str,
+                            reason="HS",
+                            rule="hypothetical_syllogism",
+                        )
+
+        # Conjunction Elimination: (A ∧ B) ⊢ A, (A ∧ B) ⊢ B
+        if isinstance(f, And):
+            and_str = str(f)
+            left_str = str(f.left)
+            right_str = str(f.right)
+            if and_str in g and left_str in g and g.nodes[and_str]["entailed"]:
+                g.add_edge(
+                    and_str, left_str, reason="∧E-L", rule="conjunction_elim_left"
                 )
-            return f_str
+            if and_str in g and right_str in g and g.nodes[and_str]["entailed"]:
+                g.add_edge(
+                    and_str, right_str, reason="∧E-R", rule="conjunction_elim_right"
+                )
 
-        for f in formulas:
-            # Modus Ponens: (A → B), A ⊢ B
-            if isinstance(f, Implies):
-                impl_str = str(f)
-                ant_str = str(f.antecedent)
-                cons_str = ensure_node(f.consequent)
-                if (
-                    impl_str in g
-                    and ant_str in g
-                    and g.nodes[impl_str]["entailed"]
-                    and g.nodes[ant_str]["entailed"]
-                ):
-                    g.add_edge(ant_str, cons_str, reason="MP", rule="modus_ponens")
-
-            # Modus Tollens: (A → B), ¬B ⊢ ¬A
-            if isinstance(f, Implies):
-                impl_str = str(f)
-                not_b = Not(f.consequent)
-                not_a = Not(f.antecedent)
-                not_b_str = str(not_b)
-                not_a_str = ensure_node(not_a)
-                if (
-                    impl_str in g
-                    and not_b_str in g
-                    and g.nodes[impl_str]["entailed"]
-                    and g.nodes[not_b_str]["entailed"]
-                ):
-                    g.add_edge(not_b_str, not_a_str, reason="MT", rule="modus_tollens")
-
-            # Disjunctive Syllogism: (A ∨ B), ¬A ⊢ B
-            if isinstance(f, Or):
-                or_str = str(f)
-                not_a = Not(f.left)
-                not_a_str = str(not_a)
-                b_str = ensure_node(f.right)
-                if (
-                    or_str in g
-                    and not_a_str in g
-                    and g.nodes[or_str]["entailed"]
-                    and g.nodes[not_a_str]["entailed"]
-                ):
-                    g.add_edge(
-                        not_a_str, b_str, reason="DS", rule="disjunctive_syllogism"
-                    )
-
-                # Symmetric: (A ∨ B), ¬B ⊢ A
-                not_b = Not(f.right)
-                not_b_str = str(not_b)
-                a_str = ensure_node(f.left)
-                if (
-                    or_str in g
-                    and not_b_str in g
-                    and g.nodes[or_str]["entailed"]
-                    and g.nodes[not_b_str]["entailed"]
-                ):
-                    g.add_edge(
-                        not_b_str, a_str, reason="DS", rule="disjunctive_syllogism"
-                    )
-
-            # Hypothetical Syllogism: (A → B), (B → C) ⊢ (A → C)
-            if isinstance(f, Implies) and isinstance(f.consequent, Implies):
-                # Pattern: A → (B → C) represents curried form; skip for now
-                pass
-            # Check if we have two separate implications
-            for f2 in formulas:
-                if isinstance(f, Implies) and isinstance(f2, Implies):
-                    if str(f.consequent) == str(f2.antecedent):
-                        # f: A → B, f2: B → C
-                        impl1_str = str(f)
-                        impl2_str = str(f2)
-                        conclusion = Implies(f.antecedent, f2.consequent)
-                        concl_str = ensure_node(conclusion)
-                        if (
-                            impl1_str in g
-                            and impl2_str in g
-                            and g.nodes[impl1_str]["entailed"]
-                            and g.nodes[impl2_str]["entailed"]
-                        ):
-                            # Add edge from both premises (we'll pick one arbitrarily)
-                            g.add_edge(
-                                impl1_str,
-                                concl_str,
-                                reason="HS",
-                                rule="hypothetical_syllogism",
-                            )
-
-            # Conjunction Elimination: (A ∧ B) ⊢ A, (A ∧ B) ⊢ B
-            if isinstance(f, And):
-                and_str = str(f)
-                left_str = ensure_node(f.left)
-                right_str = ensure_node(f.right)
-                if and_str in g and g.nodes[and_str]["entailed"]:
-                    g.add_edge(
-                        and_str, left_str, reason="∧E-L", rule="conjunction_elim_left"
-                    )
-                    g.add_edge(
-                        and_str, right_str, reason="∧E-R", rule="conjunction_elim_right"
-                    )
-
-            # Disjunction Introduction: A ⊢ (A ∨ B) for any B
-            # This can create many edges; we'll limit to formulas already in graph
-            if not isinstance(f, Or):
-                f_str = str(f)
-                if f_str in g and g.nodes[f_str]["entailed"]:
-                    for candidate in formulas:
-                        if isinstance(candidate, Or):
+        # Disjunction Introduction: A ⊢ (A ∨ B) for any B
+        if not isinstance(f, Or):
+            f_str = str(f)
+            if f_str in g and g.nodes[f_str]["entailed"]:
+                for candidate in formulas:
+                    if isinstance(candidate, Or):
+                        or_str = str(candidate)
+                        if or_str in g:
                             if str(candidate.left) == f_str:
-                                or_str = ensure_node(candidate)
                                 g.add_edge(
                                     f_str,
                                     or_str,
@@ -459,13 +426,52 @@ def build_logic_graph(
                                     rule="disjunction_intro_left",
                                 )
                             elif str(candidate.right) == f_str:
-                                or_str = ensure_node(candidate)
                                 g.add_edge(
                                     f_str,
                                     or_str,
                                     reason="∨I-R",
                                     rule="disjunction_intro_right",
                                 )
+
+        # Conjunction Introduction: A, B ⊢ (A ∧ B)
+        for f1 in formulas:
+            f1_str = str(f1)
+            if f1_str in g and g.nodes[f1_str]["entailed"]:
+                for f2 in formulas:
+                    f2_str = str(f2)
+                    if f2_str in g and g.nodes[f2_str]["entailed"]:
+                        conj_str = str(And(f1, f2))
+                        if conj_str in g and g.nodes[conj_str]["entailed"]:
+                            g.add_edge(
+                                f1_str,
+                                conj_str,
+                                reason="∧I",
+                                rule="conjunction_intro",
+                            )
+
+        # Double Negation Elimination: ¬¬A ⊢ A
+        if isinstance(f, Not) and isinstance(f.inner, Not):
+            dbl_neg_str = str(f)
+            inner_str = str(f.inner.inner)
+            if dbl_neg_str in g and inner_str in g and g.nodes[dbl_neg_str]["entailed"]:
+                g.add_edge(
+                    dbl_neg_str,
+                    inner_str,
+                    reason="¬¬E",
+                    rule="double_negation_elim",
+                )
+
+        # Double Negation Introduction: A ⊢ ¬¬A
+        f_str = str(f)
+        if f_str in g and g.nodes[f_str]["entailed"]:
+            dbl_neg_str = str(Not(Not(f)))
+            if dbl_neg_str in g and g.nodes[dbl_neg_str]["entailed"]:
+                g.add_edge(
+                    f_str,
+                    dbl_neg_str,
+                    reason="¬¬I",
+                    rule="double_negation_intro",
+                )
     return g
 
 
@@ -646,15 +652,15 @@ def export_to_html(
     """)
 
     # Create graphs directory if it doesn't exist
-    import os
+
     graphs_dir = "graphs"
     if not os.path.exists(graphs_dir):
         os.makedirs(graphs_dir)
-    
+
     # Save to graphs folder if output_file doesn't already specify a path
     if os.path.dirname(output_file) == "":
         output_file = os.path.join(graphs_dir, output_file)
-    
+
     net.save_graph(output_file)
     print(f"Interactive graph saved to {output_file}")
 
