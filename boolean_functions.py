@@ -194,12 +194,91 @@ def entails(
     return all(formula.evaluate(v) == 1 for v in sat)
 
 
+def _sample_formulas(
+    formulas: List[Formula],
+    axiom_set: Set[str],
+    var_names: Sequence[str],
+    axioms: Sequence[Formula],
+    max_nodes: int,
+) -> List[Formula]:
+    """Intelligently sample formulas to keep the most interesting ones.
+
+    Priority order:
+    1. Axioms (always included)
+    2. Entailed formulas (consequences of axioms)
+    3. Tautologies
+    4. Formulas with shorter string representation (simpler)
+    5. Random sample of the rest
+    """
+    # Categorize formulas
+    axiom_formulas = []
+    entailed_formulas = []
+    tautology_formulas = []
+    other_formulas = []
+
+    for f in formulas:
+        f_str = str(f)
+        tv = formula_truth_vector(f, var_names)
+        is_taut = all(bit == 1 for bit in tv)
+        is_ent = entails(axioms, f, var_names)
+
+        if f_str in axiom_set:
+            axiom_formulas.append(f)
+        elif is_ent:
+            entailed_formulas.append(f)
+        elif is_taut:
+            tautology_formulas.append(f)
+        else:
+            other_formulas.append(f)
+
+    # Sort each category by simplicity (shorter string = simpler)
+    entailed_formulas.sort(key=lambda f: len(str(f)))
+    tautology_formulas.sort(key=lambda f: len(str(f)))
+    other_formulas.sort(key=lambda f: len(str(f)))
+
+    # Build result prioritizing categories
+    result = []
+    result.extend(axiom_formulas)  # Always include all axioms
+
+    remaining = max_nodes - len(result)
+    if remaining <= 0:
+        return result
+
+    # Take entailed formulas (most important)
+    take_entailed = min(remaining, len(entailed_formulas))
+    result.extend(entailed_formulas[:take_entailed])
+    remaining -= take_entailed
+
+    if remaining <= 0:
+        return result
+
+    # Take some tautologies
+    take_taut = min(remaining // 2, len(tautology_formulas))
+    result.extend(tautology_formulas[:take_taut])
+    remaining -= take_taut
+
+    if remaining <= 0:
+        return result
+
+    # Fill remaining with simplest other formulas
+    result.extend(other_formulas[:remaining])
+
+    print(
+        f"📊 Sampled {len(result)} formulas from {len(formulas)}: "
+        f"{len(axiom_formulas)} axioms, {take_entailed} entailed, "
+        f"{take_taut} tautologies, {len(result) - len(axiom_formulas) - take_entailed - take_taut} others"
+    )
+
+    return result
+
+
 def build_logic_graph(
     var_names: Sequence[str],
     axioms: Sequence[Formula],
     max_depth: int = 2,
     include_all: bool = True,
     add_inference_edges: bool = True,
+    max_nodes: int | None = None,
 ) -> Any:
     """Build a directed graph of formulas.
 
@@ -210,14 +289,24 @@ def build_logic_graph(
         entailed: bool (semantic consequence of axioms)
 
     Edges:
-        - From special node "AXIOMS" to each entailed formula not itself in axioms.
+        - From each axiom node to entailed formulas (that are not axioms themselves).
         - Inference edges: modus ponens, modus tollens, disjunctive syllogism,
           hypothetical syllogism, conjunction elimination, disjunction introduction.
+
+    Parameters
+    ----------
+    max_nodes:
+        If set, intelligently sample the graph to keep only the most interesting nodes.
+        Prioritizes: axioms, direct consequences, nodes with many connections, tautologies.
     """
     formulas = enumerate_formulas(var_names, max_depth)
     axiom_set = {str(a) for a in axioms}
+
+    # If max_nodes is set and formula count exceeds it, do smart sampling
+    if max_nodes and len(formulas) > max_nodes:
+        formulas = _sample_formulas(formulas, axiom_set, var_names, axioms, max_nodes)
+
     g = nx.DiGraph()
-    g.add_node("AXIOMS", kind="meta")
 
     for f in formulas:
         tv = formula_truth_vector(f, var_names)
@@ -231,12 +320,14 @@ def build_logic_graph(
                 entailed=ent,
                 is_axiom=str(f) in axiom_set,
             )
-    # Edges from AXIOMS to entailed formulas (excluding axioms themselves)
+    # Edges from each axiom to entailed formulas (excluding axioms themselves)
     for node, data in list(g.nodes(data=True)):
-        if node == "AXIOMS":
-            continue
         if data.get("entailed") and not data.get("is_axiom"):
-            g.add_edge("AXIOMS", node, reason="entailed")
+            # Add edge from each axiom to this entailed formula
+            for axiom in axioms:
+                axiom_str = str(axiom)
+                if axiom_str in g:
+                    g.add_edge(axiom_str, node, reason="entailed")
 
     if add_inference_edges:
         # Helper to ensure node exists in graph
@@ -397,10 +488,6 @@ def visualize_logic_graph(
     node_colors = []
     labels: Dict[str, str] = {}
     for node, data in g.nodes(data=True):
-        if node == "AXIOMS":
-            node_colors.append("gold")
-            labels[node] = node
-            continue
         if data.get("is_axiom"):
             node_colors.append("orange")
         elif data.get("tautology"):
@@ -450,46 +537,10 @@ def export_to_html(
         If True, configure for Jupyter notebook display.
     """
 
-    # Limit graph size by sampling if too large
-    max_nodes = 1000
-    num_nodes = g.number_of_nodes()
-    if num_nodes > max_nodes:
-        print(
-            f"⚠️  Graph has {num_nodes} nodes, limiting to {max_nodes} for visualization"
-        )
-        # Create subgraph with priority: axioms > entailed > tautologies > others
-        priority_nodes = []
-
-        # Always include AXIOMS meta-node
-        if "AXIOMS" in g.nodes:
-            priority_nodes.append("AXIOMS")
-
-        # Sort by priority
-        for node, data in sorted(
-            g.nodes(data=True),
-            key=lambda x: (
-                0
-                if x[1].get("is_axiom")
-                else 1
-                if x[1].get("entailed")
-                else 2
-                if x[1].get("tautology")
-                else 3
-            ),
-        ):
-            if node != "AXIOMS" and len(priority_nodes) < max_nodes:
-                priority_nodes.append(node)
-
-        g = g.subgraph(priority_nodes).copy()
-        print(
-            f"   Showing {len(priority_nodes)} highest-priority nodes (axioms & entailed formulas)"
-        )
-
     net = Network(height=height, width=width, directed=True, notebook=notebook)
 
     # Color scheme
     color_map = {
-        "axiom_meta": "#FFD700",  # gold for AXIOMS node
         "axiom": "#FF8C00",  # orange for axiom formulas
         "tautology": "#90EE90",  # lightgreen
         "entailed": "#87CEEB",  # skyblue
@@ -498,17 +549,6 @@ def export_to_html(
 
     # Add nodes with styling and tooltips
     for node, data in g.nodes(data=True):
-        if node == "AXIOMS":
-            net.add_node(
-                node,
-                label=node,
-                color=color_map["axiom_meta"],
-                shape="star",
-                size=30,
-                title="Special node: all entailed formulas derive from axioms",
-            )
-            continue
-
         # Determine color
         if data.get("is_axiom"):
             color = color_map["axiom"]
