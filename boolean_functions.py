@@ -566,10 +566,10 @@ def export_to_html(
         # Build tooltip
         tv = data.get("truth_vector", ())
         truth_str = "".join(map(str, tv))
-        tooltip = f"<b>{node}</b><br>"
-        tooltip += f"Category: {category}<br>"
-        tooltip += f"Truth vector: {truth_str}<br>"
-        tooltip += f"Tautology: {data.get('tautology', False)}<br>"
+        tooltip = f"{node}\n"
+        tooltip += f"Category: {category}\n"
+        tooltip += f"Truth vector: {truth_str}\n"
+        tooltip += f"Tautology: {data.get('tautology', False)}\n"
         tooltip += f"Entailed: {data.get('entailed', False)}"
 
         net.add_node(
@@ -600,9 +600,9 @@ def export_to_html(
         color = edge_color_map.get(reason, "#808080")
 
         # Build edge tooltip
-        edge_title = f"<b>{reason}</b>"
+        edge_title = f"{reason}"
         if rule and rule != reason:
-            edge_title += f"<br>Rule: {rule}"
+            edge_title += f"\nRule: {rule}"
 
         net.add_edge(
             source,
@@ -636,6 +636,11 @@ def export_to_html(
         "tooltipDelay": 100,
         "navigationButtons": true,
         "keyboard": true
+      },
+      "nodes": {
+        "font": {
+          "multi": "html"
+        }
       }
     }
     """)
