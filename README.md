@@ -1,13 +1,44 @@
 # Metamathematica: Boolean Logic Visualization
 
-A Python toolkit for visualizing propositional logic as interactive graphs. Build graphs of logical formulas where nodes are statements and edges represent inference rules (modus ponens, modus tollens, etc.). Explore how theorems derive from axioms through forward-chaining inference and semantic entailment.
+A Python toolkit for visualizing propositional logic as interactive graphs. Build graphs of logical formulas where nodes are statements and edges represent inference rules (modus ponens, modus tollens, etc.). Explore how theorems derive from axioms through **syntactic derivability** (proof-based) and **semantic entailment** (truth-based).
+
+## Key Concepts
+
+### Syntactic Derivability vs Semantic Entailment
+
+This library provides two fundamentally different approaches to logic:
+
+#### Syntactic Derivability (Proof-Based)**
+
+- Uses `build_syntactic_graph()` (formerly `build_logic_graph`)
+- Starts with axioms and applies **inference rules** step-by-step
+- Generates only formulas that can be **proven** through a finite chain of rules
+- Focused, efficient, and shows the **derivation path**
+- May not derive all true consequences (incomplete for propositional logic)
+- Example: From `p` and `p → q`, derive `q` via Modus Ponens
+
+#### Semantic Entailment (Truth-Based)
+
+- Uses `build_semantic_graph()` (formerly `build_backward_logic_graph`)
+- Generates all possible formulas, checks which are **true in all models** where axioms hold
+- Complete for propositional logic - finds **all** logical consequences
+- More comprehensive but generates many more formulas
+- Example: `(p ∧ q) → r` is semantically entailed from `{p, p → q, q → r}` even though it's not directly derivable
+
+**Relationship**: `Syntactic ⊆ Semantic`
+
+- Everything syntactically derivable IS semantically entailed
+- NOT everything semantically entailed can be syntactically derived with a finite set of inference rules
 
 ## Features
 
 - **Formula AST**: Represent propositional formulas with `Var`, `Const`, `Not`, `And`, `Or`, `Implies`
-- **Forward-Chaining**: Start from axioms and apply inference rules to derive new statements (default)
-- **Backward-Chaining**: Generate all formulas up to a depth and find relationships to axioms (alternative)
-- **Semantic Entailment**: Check which formulas follow from axioms via truth tables
+- **Syntactic Derivability**: Start from axioms and apply inference rules to derive new statements (proof-based)
+- **Semantic Entailment**: Generate all formulas and check which are true under axioms (truth-based)
+- **Dual Approaches**:
+  - `build_syntactic_graph()` - Forward-chaining with inference rules (focused, shows derivations)
+  - `build_semantic_graph()` - Exhaustive formula enumeration (complete, explores entire space)
+- **Semantic Entailment Checking**: Verify which formulas follow from axioms via truth tables
 - **Inference Rules**:
   - Modus Ponens (MP): `(A → B), A ⊢ B`
   - Modus Tollens (MT): `(A → B), ¬B ⊢ ¬A`
@@ -34,11 +65,11 @@ Requirements:
 
 ## Quick Start
 
-### Basic Usage (Forward-Chaining)
+### Syntactic Derivability (Proof-Based Approach)
 
 ```python
 from calculus_ratiocinator import (
-    Var, Implies, build_logic_graph, export_to_html
+    Var, Implies, build_syntactic_graph, export_to_html
 )
 
 # Define axioms: p, (p → q)
@@ -46,37 +77,39 @@ p = Var("p")
 q = Var("q")
 axioms = [p, Implies(p, q)]
 
-# Build graph using forward-chaining (default)
+# Build graph using syntactic derivability (proof-based)
 # Starts from axioms and applies inference rules to derive new statements
-g = build_logic_graph(
+g = build_syntactic_graph(
     var_names=["p", "q"],
     axioms=axioms,
     max_iterations=3  # Apply rules for 3 iterations
 )
 
 # Export to interactive HTML
-export_to_html(g, "my_logic_graph.html")
+export_to_html(g, "syntactic_proof.html")
+# Result: Shows derivation of q via Modus Ponens with clear proof path
 ```
 
-### Alternative: Backward-Chaining
+### Semantic Entailment (Truth-Based Approach)
 
 ```python
 from calculus_ratiocinator import (
-    Var, Implies, build_backward_logic_graph, export_to_html
+    Var, Implies, build_semantic_graph, export_to_html
 )
 
-# Generate all formulas up to a depth, then find relationships
-g = build_backward_logic_graph(
+# Generate all formulas up to a depth, check which are semantically entailed
+g = build_semantic_graph(
     var_names=["p", "q"],
     axioms=axioms,
     max_depth=2,
     max_nodes=300  # Optional: intelligent sampling to limit graph size
 )
 
-export_to_html(g, "backward_graph.html")
+export_to_html(g, "semantic_entailment.html")
+# Result: Shows ALL formulas true under axioms, including tautologies
 ```
 
-Open `my_logic_graph.html` in your browser to:
+Open `syntactic_proof.html` or `semantic_entailment.html` in your browser to:
 
 - **Drag** nodes to rearrange
 - **Hover** over nodes for truth vectors and metadata
@@ -88,8 +121,8 @@ Open `my_logic_graph.html` in your browser to:
 
 - **Orange**: Axiom formulas (starting points)
 - **Light green**: Tautologies (always true)
-- **Sky blue**: Entailed formulas (derivable from axioms)
-- **Red**: Not entailed (false under axioms) - only in backward-chaining
+- **Sky blue**: Entailed formulas (derivable/true under axioms)
+- **Red**: Not entailed (false under axioms) - only in semantic approach
 
 ### Edge Colors
 
@@ -121,16 +154,16 @@ This generates 7 HTML files demonstrating:
 
 ## Examples
 
-### Modus Ponens (Forward-Chaining)
+### Modus Ponens (Syntactic Derivability)
 
 ```python
-from calculus_ratiocinator import Var, Implies, build_logic_graph, export_to_html
+from calculus_ratiocinator import Var, Implies, build_syntactic_graph, export_to_html
 
 x = Var("x")
 y = Var("y")
 axioms = [x, Implies(x, y)]
 
-g = build_logic_graph(["x", "y"], axioms, max_iterations=2)
+g = build_syntactic_graph(["x", "y"], axioms, max_iterations=2)
 export_to_html(g, "modus_ponens.html")
 # Result: y is derived via MP, graph shows clear derivation path
 ```
@@ -138,13 +171,13 @@ export_to_html(g, "modus_ponens.html")
 ### Modus Tollens
 
 ```python
-from calculus_ratiocinator import Var, Not, Implies, build_logic_graph, export_to_html
+from calculus_ratiocinator import Var, Not, Implies, build_syntactic_graph, export_to_html
 
 p = Var("p")
 q = Var("q")
 axioms = [Implies(p, q), Not(q)]
 
-g = build_logic_graph(["p", "q"], axioms, max_iterations=2)
+g = build_syntactic_graph(["p", "q"], axioms, max_iterations=2)
 export_to_html(g, "modus_tollens.html")
 # Result: ¬p is derived via MT edge from ¬q
 ```
@@ -152,25 +185,25 @@ export_to_html(g, "modus_tollens.html")
 ### Chain of Implications
 
 ```python
-from calculus_ratiocinator import Var, Implies, build_logic_graph, export_to_html
+from calculus_ratiocinator import Var, Implies, build_syntactic_graph, export_to_html
 
 a = Var("a")
 b = Var("b")
 c = Var("c")
 axioms = [a, Implies(a, b), Implies(b, c)]
 
-g = build_logic_graph(["a", "b", "c"], axioms, max_iterations=3)
+g = build_syntactic_graph(["a", "b", "c"], axioms, max_iterations=3)
 export_to_html(g, "chain.html")
 # Result: b, c, and (a → c) all derived with generation tracking
 ```
 
-### Exploring All Formulas (Backward-Chaining)
+### Exploring All Formulas (Semantic Entailment)
 
 ```python
-from calculus_ratiocinator import build_backward_logic_graph, export_to_html
+from calculus_ratiocinator import build_semantic_graph, export_to_html
 
 # Generate all formulas and identify tautologies
-g = build_backward_logic_graph(["x", "y"], axioms=[], max_depth=2, max_nodes=500)
+g = build_semantic_graph(["x", "y"], axioms=[], max_depth=2, max_nodes=500)
 export_to_html(g, "all_formulas.html")
 # Explore tautologies (green nodes) in the formula space
 ```
@@ -188,11 +221,13 @@ export_to_html(g, "all_formulas.html")
 
 ### Main Functions
 
-#### `build_logic_graph(var_names, axioms, max_iterations)`
+#### `build_syntactic_graph(var_names, axioms, max_iterations)`
 
-Build a directed graph by forward-chaining from axioms (default approach).
+Build a directed graph using **syntactic derivability** (proof-based, forward-chaining).
 
-Start with axioms and iteratively apply inference rules to generate new entailed statements.
+Start with axioms and iteratively apply inference rules to generate new statements that
+can be proven step-by-step. Only generates formulas derivable through the implemented
+inference rules.
 
 **Parameters:**
 
@@ -204,17 +239,19 @@ Start with axioms and iteratively apply inference rules to generate new entailed
 
 - `truth_vector`: Tuple of 0/1 over all valuations
 - `tautology`: Boolean
-- `entailed`: Boolean (always True in forward-chaining)
+- `entailed`: Boolean (always True in syntactic approach)
 - `is_axiom`: Boolean
 - `generation`: Integer (0 for axioms, 1+ for derived)
 
 And edges showing inference steps with `reason` (MP, MT, DS, HS, ∧E-L, ∧E-R, ∧I) and optional `via` (supporting formula).
 
-#### `build_backward_logic_graph(var_names, axioms, max_depth, max_nodes)`
+#### `build_semantic_graph(var_names, axioms, max_depth, max_nodes)`
 
-Build a directed graph using backward-chaining (alternative approach).
+Build a directed graph using **semantic entailment** (truth-based).
 
-Generate all formulas up to a depth, then find relationships to axioms.
+Generate all formulas up to a depth, then check which are semantically entailed
+(true in all models where axioms hold). This is complete for propositional logic
+but generates many more formulas than syntactic derivability.
 
 **Parameters:**
 
@@ -280,43 +317,47 @@ formulas = enumerate_formulas(["x", "y"], max_depth=2)
 
 ```python
 # Law of Excluded Middle: p ∨ ¬p
-from calculus_ratiocinator import Var, Or, Not, build_logic_graph
+from calculus_ratiocinator import Var, Or, Not, build_syntactic_graph
 
 p = Var("p")
 axioms = [Or(p, Not(p))]
-g = build_logic_graph(["p"], axioms, max_iterations=2)
+g = build_syntactic_graph(["p"], axioms, max_iterations=2)
 export_to_html(g, "excluded_middle.html")
 ```
 
-### Comparing Forward and Backward Chaining
+### Comparing Syntactic and Semantic Approaches
 
 ```python
 from calculus_ratiocinator import (
-    Var, Implies, build_logic_graph, build_backward_logic_graph, export_to_html
+    Var, Implies, build_syntactic_graph, build_semantic_graph, export_to_html
 )
 
 axioms = [Var("p"), Implies(Var("p"), Var("q"))]
 
-# Forward: focused, shows derivation steps
-g_forward = build_logic_graph(["p", "q"], axioms, max_iterations=3)
-print(f"Forward: {g_forward.number_of_nodes()} nodes")
+# Syntactic: focused, shows only derivable formulas (20 statements)
+g_syntactic = build_syntactic_graph(["p", "q"], axioms, max_iterations=3)
+print(f"Syntactic: {g_syntactic.number_of_nodes()} nodes")
 
-# Backward: comprehensive, explores formula space
-g_backward = build_backward_logic_graph(["p", "q"], axioms, max_depth=2, max_nodes=200)
-print(f"Backward: {g_backward.number_of_nodes()} nodes")
+# Semantic: comprehensive, explores entire formula space (2985 statements)
+g_semantic = build_semantic_graph(["p", "q"], axioms, max_depth=2)
+print(f"Semantic: {g_semantic.number_of_nodes()} nodes")
 
-export_to_html(g_forward, "forward.html")
-export_to_html(g_backward, "backward.html")
+export_to_html(g_syntactic, "syntactic_proof.html")
+export_to_html(g_semantic, "semantic_entailment.html")
+
+# Key insight: Syntactic ⊆ Semantic
+# Every syntactically derived formula is semantically entailed,
+# but semantic approach finds many more formulas (tautologies, complex entailments)
 ```
 
-### Using Smart Sampling (Backward-Chaining)
+### Using Smart Sampling (Semantic Approach)
 
 ```python
-from calculus_ratiocinator import Var, build_backward_logic_graph
+from calculus_ratiocinator import Var, build_semantic_graph
 
 # Limit graph size with intelligent sampling
 # Prioritizes: axioms → entailed → tautologies → false statements
-g = build_backward_logic_graph(
+g = build_semantic_graph(
     ["x", "y"],
     axioms=[Var("x")],
     max_depth=3,
@@ -328,45 +369,50 @@ export_to_html(g, "sampled_graph.html")
 ### Working with Three Variables
 
 ```python
-# Forward-chaining scales better with more variables
-from calculus_ratiocinator import Var, Implies, build_logic_graph
+# Syntactic approach scales better with more variables
+from calculus_ratiocinator import Var, Implies, build_syntactic_graph
 
 axioms = [Var("a"), Implies(Var("a"), Var("b")), Implies(Var("b"), Var("c"))]
-g = build_logic_graph(["a", "b", "c"], axioms, max_iterations=3)
-export_to_html(g, "three_vars.html")
+g = build_syntactic_graph(["a", "b", "c"], axioms, max_iterations=3)
+export_to_html(g, "three_vars_syntactic.html")
 
-# Backward-chaining: keep depth low for 3+ variables
-g = build_backward_logic_graph(["a", "b", "c"], axioms, max_depth=1, max_nodes=100)
-export_to_html(g, "three_vars_backward.html")
+# Semantic approach: keep depth low for 3+ variables
+g = build_semantic_graph(["a", "b", "c"], axioms, max_depth=1, max_nodes=100)
+export_to_html(g, "three_vars_semantic.html")
 ```
 
 ## Performance Notes
 
-**Forward-chaining** (default):
+**Syntactic Derivability** (proof-based):
 
-- Grows based on what can be derived from axioms
-- Efficient and focused
+- Grows based on what can be **proven** from axioms using inference rules
+- Efficient and focused on derivation paths
 - Scales well with more variables
-- Best for exploring derivations from specific axioms
+- Generates fewer formulas (20-100 typical)
+- Best for: Exploring proof steps, understanding derivations, teaching logic
 
-**Backward-chaining** (alternative):
+**Semantic Entailment** (truth-based):
 
 - Formula enumeration is **exponential in both depth and variable count**:
 
-| Variables | Depth | Approx. Formulas |
-|-----------|-------|------------------|
-| 2         | 1     | ~20              |
-| 2         | 2     | ~200             |
-| 2         | 3     | ~10,000          |
-| 3         | 1     | ~30              |
-| 3         | 2     | ~1,000           |
+| Variables | Depth | Approx. Formulas | Entailed (typical) |
+|-----------|-------|------------------|--------------------|
+| 2         | 1     | ~20              | ~10-20             |
+| 2         | 2     | ~200             | ~50-200            |
+| 2         | 3     | ~10,000          | ~1,000-5,000       |
+| 3         | 1     | ~30              | ~15-30             |
+| 3         | 2     | ~1,000           | ~200-500           |
+
+- Generates all semantically valid formulas (complete)
+- Includes tautologies and complex entailments not derivable syntactically
+- Best for: Exploring formula space, finding all consequences, completeness
 
 **Recommendations:**
 
-- **Forward-chaining**: Use `max_iterations=2-5` for most cases
-- **Backward-chaining**: Use `max_depth=2` for 2-3 variables
-- **Backward-chaining with sampling**: Use `max_depth=3-4` with `max_nodes=200-300` for focused exploration
-- **3+ variables**: Prefer forward-chaining or use `max_depth=1` with backward-chaining
+- **Syntactic approach**: Use `max_iterations=2-5` for most cases
+- **Semantic approach**: Use `max_depth=2` for 2-3 variables
+- **Semantic with sampling**: Use `max_depth=3-4` with `max_nodes=200-300` for focused exploration
+- **3+ variables**: Prefer syntactic approach or use `max_depth=1` with semantic approach
 
 ## Troubleshooting
 
@@ -378,8 +424,8 @@ pip install networkx matplotlib pyvis pandas numpy
 
 ### Graph Too Large
 
-- **Forward-chaining**: Reduce `max_iterations` or add axioms that are more constrained
-- **Backward-chaining**: Reduce `max_depth` or set `max_nodes` to limit graph size with intelligent sampling
+- **Syntactic approach**: Reduce `max_iterations` or add more specific axioms
+- **Semantic approach**: Reduce `max_depth` or set `max_nodes` to limit graph size with intelligent sampling
 
 ### HTML File Won't Open
 

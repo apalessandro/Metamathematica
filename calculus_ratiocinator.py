@@ -5,10 +5,18 @@ Main features:
 - Formula AST: Var, Const, Not, And, Or, Implies with evaluation and variable extraction
 - Formula enumeration: Generate formulas up to a given syntactic depth
 - Semantic entailment: Check if axioms semantically entail a formula
-- Logic graphs: Build directed graphs showing inference relationships (modus ponens,
-  modus tollens, disjunctive syllogism, hypothetical syllogism, conjunction elimination)
+- Logic graphs: Build directed graphs showing inference relationships
+  * Syntactic derivability (build_syntactic_graph): Proof-based, forward-chaining with inference rules
+  * Semantic entailment (build_semantic_graph): Truth-based, exhaustive formula enumeration
+- Inference rules: modus ponens, modus tollens, disjunctive syllogism,
+  hypothetical syllogism, conjunction elimination/introduction
 - Interactive visualization: Export graphs to HTML with pyvis or display with matplotlib
 - Boolean function utilities: Enumerate truth tables, convert to DNF, create truth table DataFrames
+
+Key distinction:
+- Syntactic ⊆ Semantic: Everything provable is semantically entailed, but not vice versa
+- Syntactic: Shows derivation paths, focused (20-100 formulas typical)
+- Semantic: Complete for propositional logic, comprehensive (1000s of formulas)
 """
 
 from __future__ import annotations
@@ -278,16 +286,20 @@ def _sample_formulas(
     return result
 
 
-def build_backward_logic_graph(
+def build_semantic_graph(
     var_names: Sequence[str],
     axioms: Sequence[Formula],
     max_depth: int = 2,
     max_nodes: int | None = None,
 ) -> Any:
-    """Build a directed graph using backward-chaining from all possible formulas.
+    """Build a directed graph using SEMANTIC ENTAILMENT.
 
-    This approach generates all possible formulas up to a depth, then figures out
-    how they relate to axioms through inference rules.
+    This approach generates all possible formulas up to a depth, then checks which ones
+    are semantically entailed (true in all models where axioms are true).
+
+    Semantic entailment: A formula is entailed if it's true in every truth assignment
+    that satisfies all axioms. This is complete for propositional logic but generates
+    many more formulas than syntactic derivation.
 
     Nodes: all enumerated formulas (or sampled subset if max_nodes is set).
     Node attributes:
@@ -482,18 +494,19 @@ def visualize_logic_graph(
     plt.show()
 
 
-def build_logic_graph(
+def build_syntactic_graph(
     var_names: Sequence[str],
     axioms: Sequence[Formula],
     max_iterations: int = 3,
 ) -> Any:
-    """Build a directed graph by forward-chaining from axioms.
+    """Build a directed graph using SYNTACTIC DERIVABILITY (forward-chaining).
 
     Start with axioms and iteratively apply inference rules to generate
-    new entailed statements, building the graph as we go.
+    new statements that can be proven step-by-step.
 
-    This is the default approach: starting from axioms and applying rules
-    in all possible ways to derive new conclusions.
+    Syntactic derivability: A formula is derivable if it can be proven by applying
+    a finite sequence of inference rules. This is focused and efficient but may not
+    derive all semantically entailed formulas (incomplete for propositional logic).
 
     Parameters
     ----------
@@ -1176,7 +1189,7 @@ def _demo() -> None:
         ax1 = Var("x")
         ax2 = Implies(Var("x"), Var("y"))
         axioms = [ax1, ax2]
-        lg = build_logic_graph(var_names, axioms, max_iterations=2)
+        lg = build_syntactic_graph(var_names, axioms, max_iterations=2)
         print("Built logic graph with", len(lg.nodes), "nodes")
         visualize_logic_graph(lg, layout="spring")
     except ImportError as e:
