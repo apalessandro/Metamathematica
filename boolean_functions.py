@@ -15,9 +15,11 @@ from dataclasses import dataclass
 from itertools import product, islice
 from typing import Iterable, List, Sequence, Tuple, Dict, Set, Any
 import pandas as pd
-import numpy
+import numpy as np
 
-nx = None  # will import lazily
+import networkx as nx
+import matplotlib.pyplot as plt
+from pyvis.network import Network
 
 
 # ---------------------------------------------------------------------------
@@ -212,14 +214,6 @@ def build_logic_graph(
         - Inference edges: modus ponens, modus tollens, disjunctive syllogism,
           hypothetical syllogism, conjunction elimination, disjunction introduction.
     """
-    global nx
-    if nx is None:
-        try:
-            import networkx as nx
-        except ImportError:
-            raise ImportError(
-                "networkx is required for build_logic_graph; install via 'pip install networkx'."
-            )
     formulas = enumerate_formulas(var_names, max_depth)
     axiom_set = {str(a) for a in axioms}
     g = nx.DiGraph()
@@ -391,15 +385,6 @@ def visualize_logic_graph(
     show_truth: bool = False,
 ) -> None:
     """Visualize logic graph using matplotlib."""
-    global nx
-    if nx is None:
-        try:
-            import networkx as nx  # type: ignore
-        except ImportError:
-            raise ImportError(
-                "networkx is required for visualize_logic_graph; install via 'pip install networkx'."
-            )
-    import matplotlib.pyplot as plt
 
     if layout == "spring":
         pos = nx.spring_layout(g, seed=42)
@@ -464,12 +449,6 @@ def export_to_html(
     notebook:
         If True, configure for Jupyter notebook display.
     """
-    try:
-        from pyvis.network import Network
-    except ImportError:
-        raise ImportError(
-            "pyvis is required for export_to_html; install via 'pip install pyvis'."
-        )
 
     # Limit graph size by sampling if too large
     max_nodes = 1000
@@ -734,7 +713,7 @@ def function_to_dnf(
 def boolean_function_matrix(
     n: int,
     max_functions: int | None = None,
-) -> numpy.ndarray:
+) -> np.ndarray:
     """
     Create a matrix where each row is one boolean function,
     each column is an input combination, and cell values are 0 or 1.
@@ -752,7 +731,6 @@ def boolean_function_matrix(
     numpy.ndarray
         Shape (num_functions, 2^n).
     """
-    import numpy as np  # imported here so script can be used without numpy if this is unused
 
     inputs = all_inputs(n)
     num_rows = len(inputs)
@@ -788,7 +766,6 @@ def plot_boolean_function_matrix(
     title:
         Optional custom plot title.
     """
-    import matplotlib.pyplot as plt
 
     matrix = boolean_function_matrix(n, max_functions=max_functions)
 
