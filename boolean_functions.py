@@ -319,7 +319,7 @@ def build_logic_graph(
             is_axiom=str(f) in axiom_set,
         )
 
-    # Add inference edges only between nodes already in graph
+    # Add inference edges
     for f in formulas:
         # Modus Ponens: (A → B), A ⊢ B
         if isinstance(f, Implies):
@@ -332,6 +332,7 @@ def build_logic_graph(
                 and cons_str in g
                 and g.nodes[impl_str]["entailed"]
                 and g.nodes[ant_str]["entailed"]
+                and not g.nodes[cons_str]["is_axiom"]  # Don't point to axioms
             ):
                 g.add_edge(ant_str, cons_str, reason="MP", rule="modus_ponens")
 
@@ -346,6 +347,7 @@ def build_logic_graph(
                 and not_a_str in g
                 and g.nodes[impl_str]["entailed"]
                 and g.nodes[not_b_str]["entailed"]
+                and not g.nodes[not_a_str]["is_axiom"]  # Don't point to axioms
             ):
                 g.add_edge(not_b_str, not_a_str, reason="MT", rule="modus_tollens")
 
@@ -360,6 +362,7 @@ def build_logic_graph(
                 and b_str in g
                 and g.nodes[or_str]["entailed"]
                 and g.nodes[not_a_str]["entailed"]
+                and not g.nodes[b_str]["is_axiom"]  # Don't point to axioms
             ):
                 g.add_edge(not_a_str, b_str, reason="DS", rule="disjunctive_syllogism")
 
@@ -372,6 +375,7 @@ def build_logic_graph(
                 and a_str in g
                 and g.nodes[or_str]["entailed"]
                 and g.nodes[not_b_str]["entailed"]
+                and not g.nodes[a_str]["is_axiom"]  # Don't point to axioms
             ):
                 g.add_edge(not_b_str, a_str, reason="DS", rule="disjunctive_syllogism")
 
@@ -388,6 +392,7 @@ def build_logic_graph(
                         and concl_str in g
                         and g.nodes[impl1_str]["entailed"]
                         and g.nodes[impl2_str]["entailed"]
+                        and not g.nodes[concl_str]["is_axiom"]  # Don't point to axioms
                     ):
                         g.add_edge(
                             impl1_str,
@@ -401,11 +406,11 @@ def build_logic_graph(
             and_str = str(f)
             left_str = str(f.left)
             right_str = str(f.right)
-            if and_str in g and left_str in g and g.nodes[and_str]["entailed"]:
+            if and_str in g and left_str in g and g.nodes[and_str]["entailed"] and not g.nodes[left_str]["is_axiom"]:
                 g.add_edge(
                     and_str, left_str, reason="∧E-L", rule="conjunction_elim_left"
                 )
-            if and_str in g and right_str in g and g.nodes[and_str]["entailed"]:
+            if and_str in g and right_str in g and g.nodes[and_str]["entailed"] and not g.nodes[right_str]["is_axiom"]:
                 g.add_edge(
                     and_str, right_str, reason="∧E-R", rule="conjunction_elim_right"
                 )
@@ -417,7 +422,7 @@ def build_logic_graph(
                 for candidate in formulas:
                     if isinstance(candidate, Or):
                         or_str = str(candidate)
-                        if or_str in g:
+                        if or_str in g and not g.nodes[or_str]["is_axiom"]:
                             if str(candidate.left) == f_str:
                                 g.add_edge(
                                     f_str,
@@ -441,7 +446,7 @@ def build_logic_graph(
                     f2_str = str(f2)
                     if f2_str in g and g.nodes[f2_str]["entailed"]:
                         conj_str = str(And(f1, f2))
-                        if conj_str in g and g.nodes[conj_str]["entailed"]:
+                        if conj_str in g and g.nodes[conj_str]["entailed"] and not g.nodes[conj_str]["is_axiom"]:
                             g.add_edge(
                                 f1_str,
                                 conj_str,
@@ -453,7 +458,7 @@ def build_logic_graph(
         if isinstance(f, Not) and isinstance(f.inner, Not):
             dbl_neg_str = str(f)
             inner_str = str(f.inner.inner)
-            if dbl_neg_str in g and inner_str in g and g.nodes[dbl_neg_str]["entailed"]:
+            if dbl_neg_str in g and inner_str in g and g.nodes[dbl_neg_str]["entailed"] and not g.nodes[inner_str]["is_axiom"]:
                 g.add_edge(
                     dbl_neg_str,
                     inner_str,
@@ -465,7 +470,7 @@ def build_logic_graph(
         f_str = str(f)
         if f_str in g and g.nodes[f_str]["entailed"]:
             dbl_neg_str = str(Not(Not(f)))
-            if dbl_neg_str in g and g.nodes[dbl_neg_str]["entailed"]:
+            if dbl_neg_str in g and g.nodes[dbl_neg_str]["entailed"] and not g.nodes[dbl_neg_str]["is_axiom"]:
                 g.add_edge(
                     f_str,
                     dbl_neg_str,
