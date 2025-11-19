@@ -144,7 +144,7 @@ def enumerate_formulas(var_names: Sequence[str], max_depth: int) -> List[Formula
     """
     # depth -> set[Formula]
     levels: List[Set[Formula]] = []
-    base: Set[Formula] = set([Const(0), Const(1)] + [Var(name) for name in var_names])
+    base: Set[Formula] = set([Var(name) for name in var_names])
     levels.append(base)
 
     def combine(a: Formula, b: Formula) -> List[Formula]:
