@@ -645,6 +645,16 @@ def export_to_html(
     }
     """)
 
+    # Create graphs directory if it doesn't exist
+    import os
+    graphs_dir = "graphs"
+    if not os.path.exists(graphs_dir):
+        os.makedirs(graphs_dir)
+    
+    # Save to graphs folder if output_file doesn't already specify a path
+    if os.path.dirname(output_file) == "":
+        output_file = os.path.join(graphs_dir, output_file)
+    
     net.save_graph(output_file)
     print(f"Interactive graph saved to {output_file}")
 
