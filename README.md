@@ -1,11 +1,12 @@
 # Metamathematica: Boolean Logic Visualization
 
-A Python toolkit for visualizing propositional logic as interactive graphs. Build graphs of logical formulas where nodes are statements and edges represent inference rules (modus ponens, modus tollens, etc.). Explore how theorems derive from axioms through semantic entailment and proof rules.
+A Python toolkit for visualizing propositional logic as interactive graphs. Build graphs of logical formulas where nodes are statements and edges represent inference rules (modus ponens, modus tollens, etc.). Explore how theorems derive from axioms through forward-chaining inference and semantic entailment.
 
 ## Features
 
 - **Formula AST**: Represent propositional formulas with `Var`, `Const`, `Not`, `And`, `Or`, `Implies`
-- **Formula Enumeration**: Generate all formulas up to a given syntactic depth
+- **Forward-Chaining**: Start from axioms and apply inference rules to derive new statements (default)
+- **Backward-Chaining**: Generate all formulas up to a depth and find relationships to axioms (alternative)
 - **Semantic Entailment**: Check which formulas follow from axioms via truth tables
 - **Inference Rules**:
   - Modus Ponens (MP): `(A → B), A ⊢ B`
@@ -13,7 +14,7 @@ A Python toolkit for visualizing propositional logic as interactive graphs. Buil
   - Disjunctive Syllogism (DS): `(A ∨ B), ¬A ⊢ B`
   - Hypothetical Syllogism (HS): `(A → B), (B → C) ⊢ (A → C)`
   - Conjunction Elimination (∧E): `(A ∧ B) ⊢ A, B`
-  - Disjunction Introduction (∨I): `A ⊢ (A ∨ B)`
+  - Conjunction Introduction (∧I): `A, B ⊢ (A ∧ B)`
 - **Interactive Visualization**: Export to HTML with pyvis for draggable, zoomable graphs
 - **Static Visualization**: Matplotlib-based plotting for notebooks and scripts
 
@@ -33,10 +34,10 @@ Requirements:
 
 ## Quick Start
 
-### Basic Usage
+### Basic Usage (Forward-Chaining)
 
 ```python
-from boolean_functions import (
+from calculus_ratiocinator import (
     Var, Implies, build_logic_graph, export_to_html
 )
 
@@ -45,16 +46,34 @@ p = Var("p")
 q = Var("q")
 axioms = [p, Implies(p, q)]
 
-# Build graph (with optional smart sampling)
+# Build graph using forward-chaining (default)
+# Starts from axioms and applies inference rules to derive new statements
 g = build_logic_graph(
     var_names=["p", "q"],
     axioms=axioms,
-    max_depth=2,
-    max_nodes=300  # Optional: limit graph size with intelligent sampling
+    max_iterations=3  # Apply rules for 3 iterations
 )
 
 # Export to interactive HTML
 export_to_html(g, "my_logic_graph.html")
+```
+
+### Alternative: Backward-Chaining
+
+```python
+from calculus_ratiocinator import (
+    Var, Implies, build_backward_logic_graph, export_to_html
+)
+
+# Generate all formulas up to a depth, then find relationships
+g = build_backward_logic_graph(
+    var_names=["p", "q"],
+    axioms=axioms,
+    max_depth=2,
+    max_nodes=300  # Optional: intelligent sampling to limit graph size
+)
+
+export_to_html(g, "backward_graph.html")
 ```
 
 Open `my_logic_graph.html` in your browser to:
@@ -67,20 +86,20 @@ Open `my_logic_graph.html` in your browser to:
 
 ### Color Coding
 
-- **Orange**: Axiom formulas
+- **Orange**: Axiom formulas (starting points)
 - **Light green**: Tautologies (always true)
 - **Sky blue**: Entailed formulas (derivable from axioms)
-- **Red**: Not entailed (false under axioms)
+- **Red**: Not entailed (false under axioms) - only in backward-chaining
 
 ### Edge Colors
 
-- **Dark Gray-Blue**: General entailment
 - **Hot Pink**: Modus Ponens (MP)
 - **Deep Purple**: Modus Tollens (MT)
 - **Amber**: Disjunctive Syllogism (DS)
-- **Cyan**: Hypothetical Syllogism (HS)
+- **Dark Gray-Blue**: Hypothetical Syllogism (HS)
 - **Indigo**: Conjunction Elimination Left (∧E-L)
 - **Brown**: Conjunction Elimination Right (∧E-R)
+- **Gray**: Conjunction Introduction (∧I)
 
 ## Demo Script
 
@@ -102,56 +121,56 @@ This generates 7 HTML files demonstrating:
 
 ## Examples
 
-### Modus Ponens
+### Modus Ponens (Forward-Chaining)
 
 ```python
-from boolean_functions import Var, Implies, build_logic_graph, export_to_html
+from calculus_ratiocinator import Var, Implies, build_logic_graph, export_to_html
 
 x = Var("x")
 y = Var("y")
 axioms = [x, Implies(x, y)]
 
-g = build_logic_graph(["x", "y"], axioms, max_depth=2)
+g = build_logic_graph(["x", "y"], axioms, max_iterations=2)
 export_to_html(g, "modus_ponens.html")
-# Result: y is entailed via MP edge from x
+# Result: y is derived via MP, graph shows clear derivation path
 ```
 
 ### Modus Tollens
 
 ```python
-from boolean_functions import Var, Not, Implies, build_logic_graph, export_to_html
+from calculus_ratiocinator import Var, Not, Implies, build_logic_graph, export_to_html
 
 p = Var("p")
 q = Var("q")
 axioms = [Implies(p, q), Not(q)]
 
-g = build_logic_graph(["p", "q"], axioms, max_depth=2)
+g = build_logic_graph(["p", "q"], axioms, max_iterations=2)
 export_to_html(g, "modus_tollens.html")
-# Result: ¬p is entailed via MT edge from ¬q
+# Result: ¬p is derived via MT edge from ¬q
 ```
 
 ### Chain of Implications
 
 ```python
-from boolean_functions import Var, Implies, build_logic_graph, export_to_html
+from calculus_ratiocinator import Var, Implies, build_logic_graph, export_to_html
 
 a = Var("a")
 b = Var("b")
 c = Var("c")
 axioms = [a, Implies(a, b), Implies(b, c)]
 
-g = build_logic_graph(["a", "b", "c"], axioms, max_depth=2)
+g = build_logic_graph(["a", "b", "c"], axioms, max_iterations=3)
 export_to_html(g, "chain.html")
-# Result: b, c, and (a → c) all entailed
+# Result: b, c, and (a → c) all derived with generation tracking
 ```
 
-### Exploring All Formulas
+### Exploring All Formulas (Backward-Chaining)
 
 ```python
-from boolean_functions import build_logic_graph, export_to_html
+from calculus_ratiocinator import build_backward_logic_graph, export_to_html
 
-# No axioms - show the complete space (or use max_nodes to limit)
-g = build_logic_graph(["x", "y"], axioms=[], max_depth=2, max_nodes=500)
+# Generate all formulas and identify tautologies
+g = build_backward_logic_graph(["x", "y"], axioms=[], max_depth=2, max_nodes=500)
 export_to_html(g, "all_formulas.html")
 # Explore tautologies (green nodes) in the formula space
 ```
@@ -169,20 +188,33 @@ export_to_html(g, "all_formulas.html")
 
 ### Main Functions
 
-#### `enumerate_formulas(var_names, max_depth)`
+#### `build_logic_graph(var_names, axioms, max_iterations)`
 
-Generate all unique formulas up to syntactic depth.
+Build a directed graph by forward-chaining from axioms (default approach).
+
+Start with axioms and iteratively apply inference rules to generate new entailed statements.
 
 **Parameters:**
 
 - `var_names`: List of variable names
-- `max_depth`: Maximum nesting depth (keep ≤ 3 to avoid explosion)
+- `axioms`: List of Formula objects representing axioms
+- `max_iterations`: Maximum iterations for rule application (default: 3)
 
-**Returns:** List of Formula objects
+**Returns:** NetworkX DiGraph with node attributes:
 
-#### `build_logic_graph(var_names, axioms, max_depth, max_nodes)`
+- `truth_vector`: Tuple of 0/1 over all valuations
+- `tautology`: Boolean
+- `entailed`: Boolean (always True in forward-chaining)
+- `is_axiom`: Boolean
+- `generation`: Integer (0 for axioms, 1+ for derived)
 
-Build a directed graph of logical formulas with inference edges.
+And edges showing inference steps with `reason` (MP, MT, DS, HS, ∧E-L, ∧E-R, ∧I) and optional `via` (supporting formula).
+
+#### `build_backward_logic_graph(var_names, axioms, max_depth, max_nodes)`
+
+Build a directed graph using backward-chaining (alternative approach).
+
+Generate all formulas up to a depth, then find relationships to axioms.
 
 **Parameters:**
 
@@ -226,10 +258,20 @@ Static matplotlib visualization.
 ### Truth Table Functions
 
 ```python
-from boolean_functions import make_truth_table
+from calculus_ratiocinator import make_truth_table
 
 df = make_truth_table(["x", "y"], outputs=(0, 1, 1, 1))
 # Returns pandas DataFrame with columns x, y, f
+```
+
+### Formula Enumeration
+
+```python
+from calculus_ratiocinator import enumerate_formulas
+
+# Generate all formulas up to depth (used by backward-chaining)
+formulas = enumerate_formulas(["x", "y"], max_depth=2)
+# Returns list of Formula objects (keep max_depth ≤ 3 to avoid explosion)
 ```
 
 ## Advanced Usage
@@ -238,22 +280,43 @@ df = make_truth_table(["x", "y"], outputs=(0, 1, 1, 1))
 
 ```python
 # Law of Excluded Middle: p ∨ ¬p
-from boolean_functions import Var, Or, Not
+from calculus_ratiocinator import Var, Or, Not, build_logic_graph
 
 p = Var("p")
 axioms = [Or(p, Not(p))]
-g = build_logic_graph(["p"], axioms, max_depth=2)
+g = build_logic_graph(["p"], axioms, max_iterations=2)
 export_to_html(g, "excluded_middle.html")
 ```
 
-### Using Smart Sampling
+### Comparing Forward and Backward Chaining
 
 ```python
-from boolean_functions import Var
+from calculus_ratiocinator import (
+    Var, Implies, build_logic_graph, build_backward_logic_graph, export_to_html
+)
+
+axioms = [Var("p"), Implies(Var("p"), Var("q"))]
+
+# Forward: focused, shows derivation steps
+g_forward = build_logic_graph(["p", "q"], axioms, max_iterations=3)
+print(f"Forward: {g_forward.number_of_nodes()} nodes")
+
+# Backward: comprehensive, explores formula space
+g_backward = build_backward_logic_graph(["p", "q"], axioms, max_depth=2, max_nodes=200)
+print(f"Backward: {g_backward.number_of_nodes()} nodes")
+
+export_to_html(g_forward, "forward.html")
+export_to_html(g_backward, "backward.html")
+```
+
+### Using Smart Sampling (Backward-Chaining)
+
+```python
+from calculus_ratiocinator import Var, build_backward_logic_graph
 
 # Limit graph size with intelligent sampling
 # Prioritizes: axioms → entailed → tautologies → false statements
-g = build_logic_graph(
+g = build_backward_logic_graph(
     ["x", "y"],
     axioms=[Var("x")],
     max_depth=3,
@@ -265,18 +328,30 @@ export_to_html(g, "sampled_graph.html")
 ### Working with Three Variables
 
 ```python
-# Warning: grows exponentially!
-g = build_logic_graph(
-    ["a", "b", "c"],
-    axioms=[Var("a")],
-    max_depth=1  # Keep depth low for 3+ variables
-)
+# Forward-chaining scales better with more variables
+from calculus_ratiocinator import Var, Implies, build_logic_graph
+
+axioms = [Var("a"), Implies(Var("a"), Var("b")), Implies(Var("b"), Var("c"))]
+g = build_logic_graph(["a", "b", "c"], axioms, max_iterations=3)
 export_to_html(g, "three_vars.html")
+
+# Backward-chaining: keep depth low for 3+ variables
+g = build_backward_logic_graph(["a", "b", "c"], axioms, max_depth=1, max_nodes=100)
+export_to_html(g, "three_vars_backward.html")
 ```
 
 ## Performance Notes
 
-Formula enumeration is **exponential in both depth and variable count**:
+**Forward-chaining** (default):
+
+- Grows based on what can be derived from axioms
+- Efficient and focused
+- Scales well with more variables
+- Best for exploring derivations from specific axioms
+
+**Backward-chaining** (alternative):
+
+- Formula enumeration is **exponential in both depth and variable count**:
 
 | Variables | Depth | Approx. Formulas |
 |-----------|-------|------------------|
@@ -288,10 +363,10 @@ Formula enumeration is **exponential in both depth and variable count**:
 
 **Recommendations:**
 
-- Use `max_depth=2` for 2-3 variables
-- Use `max_depth=3-4` with `max_nodes=200-300` for focused exploration
-- Use `max_depth=1` for 4+ variables
-- Set `max_nodes` to intelligently limit graph size while preserving important formulas
+- **Forward-chaining**: Use `max_iterations=2-5` for most cases
+- **Backward-chaining**: Use `max_depth=2` for 2-3 variables
+- **Backward-chaining with sampling**: Use `max_depth=3-4` with `max_nodes=200-300` for focused exploration
+- **3+ variables**: Prefer forward-chaining or use `max_depth=1` with backward-chaining
 
 ## Troubleshooting
 
@@ -303,7 +378,8 @@ pip install networkx matplotlib pyvis pandas numpy
 
 ### Graph Too Large
 
-Reduce `max_depth` or set `max_nodes` to limit the graph size with intelligent sampling.
+- **Forward-chaining**: Reduce `max_iterations` or add axioms that are more constrained
+- **Backward-chaining**: Reduce `max_depth` or set `max_nodes` to limit graph size with intelligent sampling
 
 ### HTML File Won't Open
 

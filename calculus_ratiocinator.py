@@ -278,13 +278,16 @@ def _sample_formulas(
     return result
 
 
-def build_logic_graph(
+def build_backward_logic_graph(
     var_names: Sequence[str],
     axioms: Sequence[Formula],
     max_depth: int = 2,
     max_nodes: int | None = None,
 ) -> Any:
-    """Build a directed graph of formulas.
+    """Build a directed graph using backward-chaining from all possible formulas.
+
+    This approach generates all possible formulas up to a depth, then figures out
+    how they relate to axioms through inference rules.
 
     Nodes: all enumerated formulas (or sampled subset if max_nodes is set).
     Node attributes:
@@ -299,6 +302,8 @@ def build_logic_graph(
 
     Parameters
     ----------
+    max_depth:
+        Maximum syntactic depth for formula enumeration.
     max_nodes:
         If set, intelligently sample the graph to keep only the most interesting nodes.
         Prioritizes: axioms, entailed formulas, tautologies, simpler formulas.
@@ -475,6 +480,310 @@ def visualize_logic_graph(
     plt.axis("off")
     plt.tight_layout()
     plt.show()
+
+
+def build_logic_graph(
+    var_names: Sequence[str],
+    axioms: Sequence[Formula],
+    max_iterations: int = 3,
+) -> Any:
+    """Build a directed graph by forward-chaining from axioms.
+
+    Start with axioms and iteratively apply inference rules to generate
+    new entailed statements, building the graph as we go.
+
+    This is the default approach: starting from axioms and applying rules
+    in all possible ways to derive new conclusions.
+
+    Parameters
+    ----------
+    var_names:
+        List of variable names used in formulas.
+    axioms:
+        Starting formulas (axioms).
+    max_iterations:
+        Maximum number of iterations for rule application.
+        Each iteration applies all possible rules to current knowledge base.
+
+    Returns
+    -------
+    NetworkX DiGraph with nodes representing formulas and edges showing
+    inference steps from premises to conclusions.
+    """
+    g = nx.DiGraph()
+
+    # Initialize with axioms
+    knowledge_base: Set[Formula] = set(axioms)
+
+    # Add axiom nodes
+    for axiom in axioms:
+        tv = formula_truth_vector(axiom, var_names)
+        g.add_node(
+            str(axiom),
+            truth_vector=tv,
+            tautology=all(bit == 1 for bit in tv),
+            entailed=True,
+            is_axiom=True,
+            generation=0,
+        )
+
+    print(f"🔵 Starting with {len(axioms)} axioms")
+
+    # Iteratively apply rules
+    for iteration in range(max_iterations):
+        iteration_new: Set[Formula] = set()
+
+        # Apply inference rules to formulas in knowledge base
+        for f in knowledge_base:
+            # Modus Ponens: If we have (A → B) and A, derive B
+            if isinstance(f, Implies):
+                if f.antecedent in knowledge_base:
+                    conclusion = f.consequent
+                    if conclusion not in knowledge_base:
+                        iteration_new.add(conclusion)
+                        # Add to graph
+                        tv = formula_truth_vector(conclusion, var_names)
+                        g.add_node(
+                            str(conclusion),
+                            truth_vector=tv,
+                            tautology=all(bit == 1 for bit in tv),
+                            entailed=True,
+                            is_axiom=False,
+                            generation=iteration + 1,
+                        )
+                        # Add edge showing the inference
+                        g.add_edge(
+                            str(f.antecedent),
+                            str(conclusion),
+                            reason="MP",
+                            rule="modus_ponens",
+                            via=str(f),
+                        )
+
+            # Conjunction Elimination: If we have (A ∧ B), derive A and B
+            if isinstance(f, And):
+                for part, label in [(f.left, "∧E-L"), (f.right, "∧E-R")]:
+                    if part not in knowledge_base:
+                        iteration_new.add(part)
+                        tv = formula_truth_vector(part, var_names)
+                        g.add_node(
+                            str(part),
+                            truth_vector=tv,
+                            tautology=all(bit == 1 for bit in tv),
+                            entailed=True,
+                            is_axiom=False,
+                            generation=iteration + 1,
+                        )
+                        g.add_edge(
+                            str(f),
+                            str(part),
+                            reason=label,
+                            rule=f"conjunction_elim_{'left' if label == '∧E-L' else 'right'}",
+                        )
+
+        # Two-formula rules (need to check pairs)
+        kb_list = list(knowledge_base)
+        for i, f1 in enumerate(kb_list):
+            for f2 in kb_list[i:]:
+                # Modus Tollens: (A → B) and ¬B, derive ¬A
+                if isinstance(f1, Implies) and isinstance(f2, Not):
+                    if f2.inner == f1.consequent:
+                        conclusion = Not(f1.antecedent)
+                        if conclusion not in knowledge_base:
+                            iteration_new.add(conclusion)
+                            tv = formula_truth_vector(conclusion, var_names)
+                            g.add_node(
+                                str(conclusion),
+                                truth_vector=tv,
+                                tautology=all(bit == 1 for bit in tv),
+                                entailed=True,
+                                is_axiom=False,
+                                generation=iteration + 1,
+                            )
+                            g.add_edge(
+                                str(f2),
+                                str(conclusion),
+                                reason="MT",
+                                rule="modus_tollens",
+                                via=str(f1),
+                            )
+
+                # Symmetric case for MT
+                if isinstance(f2, Implies) and isinstance(f1, Not):
+                    if f1.inner == f2.consequent:
+                        conclusion = Not(f2.antecedent)
+                        if conclusion not in knowledge_base:
+                            iteration_new.add(conclusion)
+                            tv = formula_truth_vector(conclusion, var_names)
+                            g.add_node(
+                                str(conclusion),
+                                truth_vector=tv,
+                                tautology=all(bit == 1 for bit in tv),
+                                entailed=True,
+                                is_axiom=False,
+                                generation=iteration + 1,
+                            )
+                            g.add_edge(
+                                str(f1),
+                                str(conclusion),
+                                reason="MT",
+                                rule="modus_tollens",
+                                via=str(f2),
+                            )
+
+                # Disjunctive Syllogism: (A ∨ B) and ¬A, derive B
+                if isinstance(f1, Or) and isinstance(f2, Not):
+                    if f2.inner == f1.left:
+                        conclusion = f1.right
+                        if conclusion not in knowledge_base:
+                            iteration_new.add(conclusion)
+                            tv = formula_truth_vector(conclusion, var_names)
+                            g.add_node(
+                                str(conclusion),
+                                truth_vector=tv,
+                                tautology=all(bit == 1 for bit in tv),
+                                entailed=True,
+                                is_axiom=False,
+                                generation=iteration + 1,
+                            )
+                            g.add_edge(
+                                str(f2),
+                                str(conclusion),
+                                reason="DS",
+                                rule="disjunctive_syllogism",
+                                via=str(f1),
+                            )
+                    elif f2.inner == f1.right:
+                        conclusion = f1.left
+                        if conclusion not in knowledge_base:
+                            iteration_new.add(conclusion)
+                            tv = formula_truth_vector(conclusion, var_names)
+                            g.add_node(
+                                str(conclusion),
+                                truth_vector=tv,
+                                tautology=all(bit == 1 for bit in tv),
+                                entailed=True,
+                                is_axiom=False,
+                                generation=iteration + 1,
+                            )
+                            g.add_edge(
+                                str(f2),
+                                str(conclusion),
+                                reason="DS",
+                                rule="disjunctive_syllogism",
+                                via=str(f1),
+                            )
+
+                # Symmetric cases for DS
+                if isinstance(f2, Or) and isinstance(f1, Not):
+                    if f1.inner == f2.left:
+                        conclusion = f2.right
+                        if conclusion not in knowledge_base:
+                            iteration_new.add(conclusion)
+                            tv = formula_truth_vector(conclusion, var_names)
+                            g.add_node(
+                                str(conclusion),
+                                truth_vector=tv,
+                                tautology=all(bit == 1 for bit in tv),
+                                entailed=True,
+                                is_axiom=False,
+                                generation=iteration + 1,
+                            )
+                            g.add_edge(
+                                str(f1),
+                                str(conclusion),
+                                reason="DS",
+                                rule="disjunctive_syllogism",
+                                via=str(f2),
+                            )
+                    elif f1.inner == f2.right:
+                        conclusion = f2.left
+                        if conclusion not in knowledge_base:
+                            iteration_new.add(conclusion)
+                            tv = formula_truth_vector(conclusion, var_names)
+                            g.add_node(
+                                str(conclusion),
+                                truth_vector=tv,
+                                tautology=all(bit == 1 for bit in tv),
+                                entailed=True,
+                                is_axiom=False,
+                                generation=iteration + 1,
+                            )
+                            g.add_edge(
+                                str(f1),
+                                str(conclusion),
+                                reason="DS",
+                                rule="disjunctive_syllogism",
+                                via=str(f2),
+                            )
+
+                # Hypothetical Syllogism: (A → B) and (B → C), derive (A → C)
+                if isinstance(f1, Implies) and isinstance(f2, Implies):
+                    if f1.consequent == f2.antecedent:
+                        conclusion = Implies(f1.antecedent, f2.consequent)
+                        if conclusion not in knowledge_base:
+                            iteration_new.add(conclusion)
+                            tv = formula_truth_vector(conclusion, var_names)
+                            g.add_node(
+                                str(conclusion),
+                                truth_vector=tv,
+                                tautology=all(bit == 1 for bit in tv),
+                                entailed=True,
+                                is_axiom=False,
+                                generation=iteration + 1,
+                            )
+                            g.add_edge(
+                                str(f1),
+                                str(conclusion),
+                                reason="HS",
+                                rule="hypothetical_syllogism",
+                                via=str(f2),
+                            )
+
+                # Conjunction Introduction: A and B, derive (A ∧ B)
+                # (Only add if both are simple enough to avoid explosion)
+                if not isinstance(f1, And) and not isinstance(f2, And):
+                    conclusion = And(f1, f2)
+                    if conclusion not in knowledge_base and len(str(conclusion)) < 50:
+                        iteration_new.add(conclusion)
+                        tv = formula_truth_vector(conclusion, var_names)
+                        g.add_node(
+                            str(conclusion),
+                            truth_vector=tv,
+                            tautology=all(bit == 1 for bit in tv),
+                            entailed=True,
+                            is_axiom=False,
+                            generation=iteration + 1,
+                        )
+                        # Add edges from both premises
+                        g.add_edge(
+                            str(f1),
+                            str(conclusion),
+                            reason="∧I",
+                            rule="conjunction_intro",
+                        )
+                        if str(f1) != str(f2):  # Avoid self-loops
+                            g.add_edge(
+                                str(f2),
+                                str(conclusion),
+                                reason="∧I",
+                                rule="conjunction_intro",
+                            )
+
+        print(
+            f"🔵 Iteration {iteration + 1}: Generated {len(iteration_new)} new formulas"
+        )
+
+        if not iteration_new:
+            print(f"✓ Fixed point reached at iteration {iteration + 1}")
+            break
+
+        knowledge_base.update(iteration_new)
+
+    print(
+        f"✓ Final knowledge base: {len(knowledge_base)} formulas, {len(g.nodes)} nodes, {len(g.edges)} edges"
+    )
+    return g
 
 
 def export_to_html(
@@ -878,7 +1187,7 @@ def _demo() -> None:
         ax1 = Var("x")
         ax2 = Implies(Var("x"), Var("y"))
         axioms = [ax1, ax2]
-        lg = build_logic_graph(var_names, axioms, max_depth=2)
+        lg = build_logic_graph(var_names, axioms, max_iterations=2)
         print("Built logic graph with", len(lg.nodes), "nodes")
         visualize_logic_graph(lg, layout="spring")
     except ImportError as e:
