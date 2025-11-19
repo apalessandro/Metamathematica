@@ -45,12 +45,12 @@ p = Var("p")
 q = Var("q")
 axioms = [p, Implies(p, q)]
 
-# Build graph
+# Build graph (with optional smart sampling)
 g = build_logic_graph(
     var_names=["p", "q"],
     axioms=axioms,
     max_depth=2,
-    include_all=True
+    max_nodes=300  # Optional: limit graph size with intelligent sampling
 )
 
 # Export to interactive HTML
@@ -67,21 +67,20 @@ Open `my_logic_graph.html` in your browser to:
 
 ### Color Coding
 
-- **Gold star** (⭐): AXIOMS meta-node
 - **Orange**: Axiom formulas
 - **Light green**: Tautologies (always true)
 - **Sky blue**: Entailed formulas (derivable from axioms)
-- **Light gray**: Not entailed
+- **Red**: Not entailed (false under axioms)
 
 ### Edge Colors
 
-- **Black**: Entailment from axioms
-- **Red**: Modus Ponens (MP)
-- **Deep Pink**: Modus Tollens (MT)
-- **Dark Magenta**: Disjunctive Syllogism (DS)
-- **Indigo**: Hypothetical Syllogism (HS)
-- **Dark/Forest Green**: Conjunction Elimination (∧E)
-- **Blue shades**: Disjunction Introduction (∨I)
+- **Dark Gray-Blue**: General entailment
+- **Hot Pink**: Modus Ponens (MP)
+- **Deep Purple**: Modus Tollens (MT)
+- **Amber**: Disjunctive Syllogism (DS)
+- **Cyan**: Hypothetical Syllogism (HS)
+- **Indigo**: Conjunction Elimination Left (∧E-L)
+- **Brown**: Conjunction Elimination Right (∧E-R)
 
 ## Demo Script
 
@@ -151,8 +150,8 @@ export_to_html(g, "chain.html")
 ```python
 from boolean_functions import build_logic_graph, export_to_html
 
-# No axioms - show the complete space
-g = build_logic_graph(["x", "y"], axioms=[], max_depth=2, include_all=True)
+# No axioms - show the complete space (or use max_nodes to limit)
+g = build_logic_graph(["x", "y"], axioms=[], max_depth=2, max_nodes=500)
 export_to_html(g, "all_formulas.html")
 # Explore tautologies (green nodes) in the formula space
 ```
@@ -181,17 +180,16 @@ Generate all unique formulas up to syntactic depth.
 
 **Returns:** List of Formula objects
 
-#### `build_logic_graph(var_names, axioms, max_depth, include_all, add_inference_edges)`
+#### `build_logic_graph(var_names, axioms, max_depth, max_nodes)`
 
-Build a directed graph of logical formulas.
+Build a directed graph of logical formulas with inference edges.
 
 **Parameters:**
 
 - `var_names`: List of variable names
 - `axioms`: List of Formula objects representing axioms
 - `max_depth`: Formula enumeration depth (default: 2)
-- `include_all`: Include non-entailed formulas (default: True)
-- `add_inference_edges`: Add inference rule edges (default: True)
+- `max_nodes`: Optional limit on graph size with intelligent sampling (prioritizes axioms → entailed → tautologies → false statements)
 
 **Returns:** NetworkX DiGraph with node attributes:
 
@@ -199,6 +197,8 @@ Build a directed graph of logical formulas.
 - `tautology`: Boolean
 - `entailed`: Boolean (semantic consequence of axioms)
 - `is_axiom`: Boolean
+
+And edges with inference rule labels (MP, MT, DS, HS, ∧E-L, ∧E-R).
 
 #### `export_to_html(g, output_file, height, width, notebook)`
 
@@ -246,30 +246,20 @@ g = build_logic_graph(["p"], axioms, max_depth=2)
 export_to_html(g, "excluded_middle.html")
 ```
 
-### Filtering to Entailed Only
+### Using Smart Sampling
 
 ```python
-# Show only provable formulas
+from boolean_functions import Var
+
+# Limit graph size with intelligent sampling
+# Prioritizes: axioms → entailed → tautologies → false statements
 g = build_logic_graph(
     ["x", "y"],
     axioms=[Var("x")],
-    max_depth=2,
-    include_all=False  # Filter out non-entailed
+    max_depth=3,
+    max_nodes=200  # Keep only 200 most important formulas
 )
-export_to_html(g, "entailed_only.html")
-```
-
-### Disabling Inference Edges
-
-```python
-# Show only semantic entailment, no proof rules
-g = build_logic_graph(
-    ["x", "y"],
-    axioms=[Var("x")],
-    max_depth=2,
-    add_inference_edges=False
-)
-export_to_html(g, "semantic_only.html")
+export_to_html(g, "sampled_graph.html")
 ```
 
 ### Working with Three Variables
@@ -299,8 +289,9 @@ Formula enumeration is **exponential in both depth and variable count**:
 **Recommendations:**
 
 - Use `max_depth=2` for 2-3 variables
+- Use `max_depth=3-4` with `max_nodes=200-300` for focused exploration
 - Use `max_depth=1` for 4+ variables
-- Set `include_all=False` to filter to entailed formulas only
+- Set `max_nodes` to intelligently limit graph size while preserving important formulas
 
 ## Troubleshooting
 
@@ -312,7 +303,7 @@ pip install networkx matplotlib pyvis pandas numpy
 
 ### Graph Too Large
 
-Reduce `max_depth` or set `include_all=False`.
+Reduce `max_depth` or set `max_nodes` to limit the graph size with intelligent sampling.
 
 ### HTML File Won't Open
 
