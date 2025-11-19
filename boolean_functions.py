@@ -215,7 +215,7 @@ def build_logic_graph(
     global nx
     if nx is None:
         try:
-            import networkx as nx  # type: ignore
+            import networkx as nx
         except ImportError:
             raise ImportError(
                 "networkx is required for build_logic_graph; install via 'pip install networkx'."
