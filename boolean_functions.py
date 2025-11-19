@@ -254,20 +254,24 @@ def _sample_formulas(
         return result
 
     # Take some tautologies
-    take_taut = min(remaining // 2, len(tautology_formulas))
+    take_taut = min(remaining // 3, len(tautology_formulas))
     result.extend(tautology_formulas[:take_taut])
     remaining -= take_taut
 
     if remaining <= 0:
         return result
 
-    # Fill remaining with simplest other formulas
-    result.extend(other_formulas[:remaining])
+    # Reserve space for false statements (at least 20% of remaining or 5, whichever is larger)
+    min_false = max(5, remaining // 5)
+    take_false = min(min_false, len(other_formulas), remaining)
+
+    # Fill remaining with simplest other formulas (false statements)
+    result.extend(other_formulas[:take_false])
 
     print(
         f"📊 Sampled {len(result)} formulas from {len(formulas)}: "
         f"{len(axiom_formulas)} axioms, {take_entailed} entailed, "
-        f"{take_taut} tautologies, {len(result) - len(axiom_formulas) - take_entailed - take_taut} others"
+        f"{take_taut} tautologies, {take_false} false statements"
     )
 
     return result
@@ -406,76 +410,23 @@ def build_logic_graph(
             and_str = str(f)
             left_str = str(f.left)
             right_str = str(f.right)
-            if and_str in g and left_str in g and g.nodes[and_str]["entailed"] and not g.nodes[left_str]["is_axiom"]:
+            if (
+                and_str in g
+                and left_str in g
+                and g.nodes[and_str]["entailed"]
+                and not g.nodes[left_str]["is_axiom"]
+            ):
                 g.add_edge(
                     and_str, left_str, reason="∧E-L", rule="conjunction_elim_left"
                 )
-            if and_str in g and right_str in g and g.nodes[and_str]["entailed"] and not g.nodes[right_str]["is_axiom"]:
+            if (
+                and_str in g
+                and right_str in g
+                and g.nodes[and_str]["entailed"]
+                and not g.nodes[right_str]["is_axiom"]
+            ):
                 g.add_edge(
                     and_str, right_str, reason="∧E-R", rule="conjunction_elim_right"
-                )
-
-        # Disjunction Introduction: A ⊢ (A ∨ B) for any B
-        if not isinstance(f, Or):
-            f_str = str(f)
-            if f_str in g and g.nodes[f_str]["entailed"]:
-                for candidate in formulas:
-                    if isinstance(candidate, Or):
-                        or_str = str(candidate)
-                        if or_str in g and not g.nodes[or_str]["is_axiom"]:
-                            if str(candidate.left) == f_str:
-                                g.add_edge(
-                                    f_str,
-                                    or_str,
-                                    reason="∨I-L",
-                                    rule="disjunction_intro_left",
-                                )
-                            elif str(candidate.right) == f_str:
-                                g.add_edge(
-                                    f_str,
-                                    or_str,
-                                    reason="∨I-R",
-                                    rule="disjunction_intro_right",
-                                )
-
-        # Conjunction Introduction: A, B ⊢ (A ∧ B)
-        for f1 in formulas:
-            f1_str = str(f1)
-            if f1_str in g and g.nodes[f1_str]["entailed"]:
-                for f2 in formulas:
-                    f2_str = str(f2)
-                    if f2_str in g and g.nodes[f2_str]["entailed"]:
-                        conj_str = str(And(f1, f2))
-                        if conj_str in g and g.nodes[conj_str]["entailed"] and not g.nodes[conj_str]["is_axiom"]:
-                            g.add_edge(
-                                f1_str,
-                                conj_str,
-                                reason="∧I",
-                                rule="conjunction_intro",
-                            )
-
-        # Double Negation Elimination: ¬¬A ⊢ A
-        if isinstance(f, Not) and isinstance(f.inner, Not):
-            dbl_neg_str = str(f)
-            inner_str = str(f.inner.inner)
-            if dbl_neg_str in g and inner_str in g and g.nodes[dbl_neg_str]["entailed"] and not g.nodes[inner_str]["is_axiom"]:
-                g.add_edge(
-                    dbl_neg_str,
-                    inner_str,
-                    reason="¬¬E",
-                    rule="double_negation_elim",
-                )
-
-        # Double Negation Introduction: A ⊢ ¬¬A
-        f_str = str(f)
-        if f_str in g and g.nodes[f_str]["entailed"]:
-            dbl_neg_str = str(Not(Not(f)))
-            if dbl_neg_str in g and g.nodes[dbl_neg_str]["entailed"] and not g.nodes[dbl_neg_str]["is_axiom"]:
-                g.add_edge(
-                    f_str,
-                    dbl_neg_str,
-                    reason="¬¬I",
-                    rule="double_negation_intro",
                 )
     return g
 
@@ -553,9 +504,9 @@ def export_to_html(
     # Color scheme
     color_map = {
         "axiom": "#FF8C00",  # orange for axiom formulas
-        "tautology": "#90EE90",  # lightgreen
-        "entailed": "#87CEEB",  # skyblue
-        "other": "#D3D3D3",  # lightgray
+        "tautology": "#90EE90",  # lightgreen for tautologies
+        "entailed": "#87CEEB",  # skyblue for entailed formulas
+        "other": "#FF0000",  # red for statements not entailed (false under axioms)
     }
 
     # Add nodes with styling and tooltips
@@ -594,15 +545,13 @@ def export_to_html(
 
     # Add edges with labels and colors
     edge_color_map = {
-        "entailed": "#000000",  # black
-        "MP": "#FF0000",  # red - modus ponens
-        "MT": "#FF1493",  # deep pink - modus tollens
-        "DS": "#8B008B",  # dark magenta - disjunctive syllogism
-        "HS": "#4B0082",  # indigo - hypothetical syllogism
-        "∧E-L": "#006400",  # dark green - conjunction elim left
-        "∧E-R": "#228B22",  # forest green - conjunction elim right
-        "∨I-L": "#0000CD",  # medium blue - disjunction intro left
-        "∨I-R": "#4169E1",  # royal blue - disjunction intro right
+        "entailed": "#34495E",  # dark gray-blue - general entailment
+        "MP": "#E91E63",  # hot pink - modus ponens
+        "MT": "#9C27B0",  # deep purple - modus tollens
+        "DS": "#FF9800",  # amber - disjunctive syllogism
+        "HS": "#00BCD4",  # cyan - hypothetical syllogism
+        "∧E-L": "#3F51B5",  # indigo - conjunction elim left
+        "∧E-R": "#795548",  # brown - conjunction elim right
     }
 
     for source, target, data in g.edges(data=True):
