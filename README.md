@@ -10,7 +10,7 @@ This library provides two fundamentally different approaches to logic:
 
 #### Syntactic Derivability (Proof-Based)**
 
-- Uses `build_syntactic_graph()` (formerly `build_logic_graph`)
+- Uses `build_syntactic_graph()`
 - Starts with axioms and applies **inference rules** step-by-step
 - Generates only formulas that can be **proven** through a finite chain of rules
 - Focused, efficient, and shows the **derivation path**
@@ -19,7 +19,7 @@ This library provides two fundamentally different approaches to logic:
 
 #### Semantic Entailment (Truth-Based)
 
-- Uses `build_semantic_graph()` (formerly `build_backward_logic_graph`)
+- Uses `build_semantic_graph()`
 - Generates all possible formulas, checks which are **true in all models** where axioms hold
 - Complete for propositional logic - finds **all** logical consequences
 - More comprehensive but generates many more formulas
@@ -134,100 +134,13 @@ Open `syntactic_proof.html` or `semantic_entailment.html` in your browser to:
 - **Brown**: Conjunction Elimination Right (∧E-R)
 - **Gray**: Conjunction Introduction (∧I)
 
-## Demo Script
-
-Run the comprehensive demo to see all inference rules in action:
-
-```bash
-python logic_graph_demo.py
-```
-
-This generates 7 HTML files demonstrating:
-
-1. Modus ponens
-2. Modus tollens
-3. Disjunctive syllogism
-4. Hypothetical syllogism
-5. Conjunction elimination
-6. Complex multi-step proofs
-7. Complete formula space exploration
-
-## Examples
-
-### Modus Ponens (Syntactic Derivability)
-
-```python
-from calculus_ratiocinator import Var, Implies, build_syntactic_graph, export_to_html
-
-x = Var("x")
-y = Var("y")
-axioms = [x, Implies(x, y)]
-
-g = build_syntactic_graph(["x", "y"], axioms, max_iterations=2)
-export_to_html(g, "modus_ponens.html")
-# Result: y is derived via MP, graph shows clear derivation path
-```
-
-### Modus Tollens
-
-```python
-from calculus_ratiocinator import Var, Not, Implies, build_syntactic_graph, export_to_html
-
-p = Var("p")
-q = Var("q")
-axioms = [Implies(p, q), Not(q)]
-
-g = build_syntactic_graph(["p", "q"], axioms, max_iterations=2)
-export_to_html(g, "modus_tollens.html")
-# Result: ¬p is derived via MT edge from ¬q
-```
-
-### Chain of Implications
-
-```python
-from calculus_ratiocinator import Var, Implies, build_syntactic_graph, export_to_html
-
-a = Var("a")
-b = Var("b")
-c = Var("c")
-axioms = [a, Implies(a, b), Implies(b, c)]
-
-g = build_syntactic_graph(["a", "b", "c"], axioms, max_iterations=3)
-export_to_html(g, "chain.html")
-# Result: b, c, and (a → c) all derived with generation tracking
-```
-
-### Exploring All Formulas (Semantic Entailment)
-
-```python
-from calculus_ratiocinator import build_semantic_graph, export_to_html
-
-# Generate all formulas and identify tautologies
-g = build_semantic_graph(["x", "y"], axioms=[], max_depth=2, max_nodes=500)
-export_to_html(g, "all_formulas.html")
-# Explore tautologies (green nodes) in the formula space
-```
-
-## API Reference
-
-### Formula Classes
-
-- `Var(name: str)` - Variable
-- `Const(value: int)` - Constant (0 or 1)
-- `Not(inner: Formula)` - Negation
-- `And(left: Formula, right: Formula)` - Conjunction
-- `Or(left: Formula, right: Formula)` - Disjunction
-- `Implies(antecedent: Formula, consequent: Formula)` - Implication
-
 ### Main Functions
 
 #### `build_syntactic_graph(var_names, axioms, max_iterations)`
 
 Build a directed graph using **syntactic derivability** (proof-based, forward-chaining).
 
-Start with axioms and iteratively apply inference rules to generate new statements that
-can be proven step-by-step. Only generates formulas derivable through the implemented
-inference rules.
+Start with axioms and iteratively apply inference rules to generate new statements that can be proven step-by-step. Only generates formulas derivable through the implemented inference rules.
 
 **Parameters:**
 
@@ -249,9 +162,7 @@ And edges showing inference steps with `reason` (MP, MT, DS, HS, ∧E-L, ∧E-R,
 
 Build a directed graph using **semantic entailment** (truth-based).
 
-Generate all formulas up to a depth, then check which are semantically entailed
-(true in all models where axioms hold). This is complete for propositional logic
-but generates many more formulas than syntactic derivability.
+Generate all formulas up to a depth, then check which are semantically entailed (true in all models where axioms hold). This is complete for propositional logic but generates many more formulas than syntactic derivability.
 
 **Parameters:**
 
@@ -310,129 +221,6 @@ from calculus_ratiocinator import enumerate_formulas
 formulas = enumerate_formulas(["x", "y"], max_depth=2)
 # Returns list of Formula objects (keep max_depth ≤ 3 to avoid explosion)
 ```
-
-## Advanced Usage
-
-### Custom Axiom Systems
-
-```python
-# Law of Excluded Middle: p ∨ ¬p
-from calculus_ratiocinator import Var, Or, Not, build_syntactic_graph
-
-p = Var("p")
-axioms = [Or(p, Not(p))]
-g = build_syntactic_graph(["p"], axioms, max_iterations=2)
-export_to_html(g, "excluded_middle.html")
-```
-
-### Comparing Syntactic and Semantic Approaches
-
-```python
-from calculus_ratiocinator import (
-    Var, Implies, build_syntactic_graph, build_semantic_graph, export_to_html
-)
-
-axioms = [Var("p"), Implies(Var("p"), Var("q"))]
-
-# Syntactic: focused, shows only derivable formulas (20 statements)
-g_syntactic = build_syntactic_graph(["p", "q"], axioms, max_iterations=3)
-print(f"Syntactic: {g_syntactic.number_of_nodes()} nodes")
-
-# Semantic: comprehensive, explores entire formula space (2985 statements)
-g_semantic = build_semantic_graph(["p", "q"], axioms, max_depth=2)
-print(f"Semantic: {g_semantic.number_of_nodes()} nodes")
-
-export_to_html(g_syntactic, "syntactic_proof.html")
-export_to_html(g_semantic, "semantic_entailment.html")
-
-# Key insight: Syntactic ⊆ Semantic
-# Every syntactically derived formula is semantically entailed,
-# but semantic approach finds many more formulas (tautologies, complex entailments)
-```
-
-### Using Smart Sampling (Semantic Approach)
-
-```python
-from calculus_ratiocinator import Var, build_semantic_graph
-
-# Limit graph size with intelligent sampling
-# Prioritizes: axioms → entailed → tautologies → false statements
-g = build_semantic_graph(
-    ["x", "y"],
-    axioms=[Var("x")],
-    max_depth=3,
-    max_nodes=200  # Keep only 200 most important formulas
-)
-export_to_html(g, "sampled_graph.html")
-```
-
-### Working with Three Variables
-
-```python
-# Syntactic approach scales better with more variables
-from calculus_ratiocinator import Var, Implies, build_syntactic_graph
-
-axioms = [Var("a"), Implies(Var("a"), Var("b")), Implies(Var("b"), Var("c"))]
-g = build_syntactic_graph(["a", "b", "c"], axioms, max_iterations=3)
-export_to_html(g, "three_vars_syntactic.html")
-
-# Semantic approach: keep depth low for 3+ variables
-g = build_semantic_graph(["a", "b", "c"], axioms, max_depth=1, max_nodes=100)
-export_to_html(g, "three_vars_semantic.html")
-```
-
-## Performance Notes
-
-**Syntactic Derivability** (proof-based):
-
-- Grows based on what can be **proven** from axioms using inference rules
-- Efficient and focused on derivation paths
-- Scales well with more variables
-- Generates fewer formulas (20-100 typical)
-- Best for: Exploring proof steps, understanding derivations, teaching logic
-
-**Semantic Entailment** (truth-based):
-
-- Formula enumeration is **exponential in both depth and variable count**:
-
-| Variables | Depth | Approx. Formulas | Entailed (typical) |
-|-----------|-------|------------------|--------------------|
-| 2         | 1     | ~20              | ~10-20             |
-| 2         | 2     | ~200             | ~50-200            |
-| 2         | 3     | ~10,000          | ~1,000-5,000       |
-| 3         | 1     | ~30              | ~15-30             |
-| 3         | 2     | ~1,000           | ~200-500           |
-
-- Generates all semantically valid formulas (complete)
-- Includes tautologies and complex entailments not derivable syntactically
-- Best for: Exploring formula space, finding all consequences, completeness
-
-**Recommendations:**
-
-- **Syntactic approach**: Use `max_iterations=2-5` for most cases
-- **Semantic approach**: Use `max_depth=2` for 2-3 variables
-- **Semantic with sampling**: Use `max_depth=3-4` with `max_nodes=200-300` for focused exploration
-- **3+ variables**: Prefer syntactic approach or use `max_depth=1` with semantic approach
-
-## Troubleshooting
-
-### Missing Dependencies
-
-```bash
-pip install networkx matplotlib pyvis pandas numpy
-```
-
-### Graph Too Large
-
-- **Syntactic approach**: Reduce `max_iterations` or add more specific axioms
-- **Semantic approach**: Reduce `max_depth` or set `max_nodes` to limit graph size with intelligent sampling
-
-### HTML File Won't Open
-
-Some browsers block local file access. Try:
-
-- Firefox (usually works)
-- `python -m http.server` and browse to <http://localhost:8000>
 
 ## License
 
