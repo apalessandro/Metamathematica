@@ -222,16 +222,4 @@ formulas = enumerate_formulas(["x", "y"], max_depth=2)
 # Returns list of Formula objects (keep max_depth ≤ 3 to avoid explosion)
 ```
 
-## License
-
-MIT License - See repository for details.
-
 <img width="842" height="772" alt="image" src="https://github.com/user-attachments/assets/0e09a7d2-8bff-4da0-bfaa-6db3ccc1d255" />
-
-
-## References
-
-- Propositional logic: <https://en.wikipedia.org/wiki/Propositional_calculus>
-- Natural deduction: <https://en.wikipedia.org/wiki/Natural_deduction>
-- NetworkX: <https://networkx.org/>
-- Pyvis: <https://pyvis.readthedocs.io/>
