@@ -226,6 +226,9 @@ formulas = enumerate_formulas(["x", "y"], max_depth=2)
 
 MIT License - See repository for details.
 
+<img width="842" height="772" alt="image" src="https://github.com/user-attachments/assets/0e09a7d2-8bff-4da0-bfaa-6db3ccc1d255" />
+
+
 ## References
 
 - Propositional logic: <https://en.wikipedia.org/wiki/Propositional_calculus>
