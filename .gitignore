@@ -3,3 +3,4 @@ __pycache__/boolean_functions.cpython-313.pyc
 # Generated graph HTML files
 graphs/
 *.html
+__pycache__/
