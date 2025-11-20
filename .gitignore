@@ -1,5 +1,4 @@
-__pycache__/
-
 # Generated graph HTML files
 graphs/
 *.html
+__pycache__/calculus_ratiocinator.cpython-313.pyc

@@ -291,6 +291,7 @@ def build_semantic_graph(
     axioms: Sequence[Formula],
     max_depth: int = 2,
     max_nodes: int | None = None,
+    rules: Set[str] | None = None,
 ) -> Any:
     """Build a directed graph using SEMANTIC ENTAILMENT.
 
@@ -319,7 +320,31 @@ def build_semantic_graph(
     max_nodes:
         If set, intelligently sample the graph to keep only the most interesting nodes.
         Prioritizes: axioms, entailed formulas, tautologies, simpler formulas.
+    rules:
+        Set of rule names to apply for edges. If None, applies all available rules.
+        Available rules: 'MP', 'MT', 'DS', 'HS', '∧E', '∧I', '∨I', 'DNE',
+        'CP', 'MI', 'RMI', 'DeM', 'RDeM', 'LEM', 'ID'
     """
+    # Default: use all rules if none specified
+    if rules is None:
+        rules = {
+            "MP",
+            "MT",
+            "DS",
+            "HS",
+            "∧E",
+            "∧I",
+            "∨I",
+            "DNE",
+            "CP",
+            "MI",
+            "RMI",
+            "DeM",
+            "RDeM",
+            "LEM",
+            "ID",
+        }
+
     formulas = enumerate_formulas(var_names, max_depth)
     axiom_set = {str(a) for a in axioms}
 
@@ -344,7 +369,7 @@ def build_semantic_graph(
     # Add inference edges
     for f in formulas:
         # Modus Ponens: (A → B), A ⊢ B
-        if isinstance(f, Implies):
+        if "MP" in rules and isinstance(f, Implies):
             impl_str = str(f)
             ant_str = str(f.antecedent)
             cons_str = str(f.consequent)
@@ -359,7 +384,7 @@ def build_semantic_graph(
                 g.add_edge(ant_str, cons_str, reason="MP", rule="modus_ponens")
 
         # Modus Tollens: (A → B), ¬B ⊢ ¬A
-        if isinstance(f, Implies):
+        if "MT" in rules and isinstance(f, Implies):
             impl_str = str(f)
             not_b_str = str(Not(f.consequent))
             not_a_str = str(Not(f.antecedent))
@@ -374,7 +399,7 @@ def build_semantic_graph(
                 g.add_edge(not_b_str, not_a_str, reason="MT", rule="modus_tollens")
 
         # Disjunctive Syllogism: (A ∨ B), ¬A ⊢ B
-        if isinstance(f, Or):
+        if "DS" in rules and isinstance(f, Or):
             or_str = str(f)
             not_a_str = str(Not(f.left))
             b_str = str(f.right)
@@ -402,29 +427,32 @@ def build_semantic_graph(
                 g.add_edge(not_b_str, a_str, reason="DS", rule="disjunctive_syllogism")
 
         # Hypothetical Syllogism: (A → B), (B → C) ⊢ (A → C)
-        for f2 in formulas:
-            if isinstance(f, Implies) and isinstance(f2, Implies):
-                if str(f.consequent) == str(f2.antecedent):
-                    impl1_str = str(f)
-                    impl2_str = str(f2)
-                    concl_str = str(Implies(f.antecedent, f2.consequent))
-                    if (
-                        impl1_str in g
-                        and impl2_str in g
-                        and concl_str in g
-                        and g.nodes[impl1_str]["entailed"]
-                        and g.nodes[impl2_str]["entailed"]
-                        and not g.nodes[concl_str]["is_axiom"]  # Don't point to axioms
-                    ):
-                        g.add_edge(
-                            impl1_str,
-                            concl_str,
-                            reason="HS",
-                            rule="hypothetical_syllogism",
-                        )
+        if "HS" in rules:
+            for f2 in formulas:
+                if isinstance(f, Implies) and isinstance(f2, Implies):
+                    if str(f.consequent) == str(f2.antecedent):
+                        impl1_str = str(f)
+                        impl2_str = str(f2)
+                        concl_str = str(Implies(f.antecedent, f2.consequent))
+                        if (
+                            impl1_str in g
+                            and impl2_str in g
+                            and concl_str in g
+                            and g.nodes[impl1_str]["entailed"]
+                            and g.nodes[impl2_str]["entailed"]
+                            and not g.nodes[concl_str][
+                                "is_axiom"
+                            ]  # Don't point to axioms
+                        ):
+                            g.add_edge(
+                                impl1_str,
+                                concl_str,
+                                reason="HS",
+                                rule="hypothetical_syllogism",
+                            )
 
         # Conjunction Elimination: (A ∧ B) ⊢ A, (A ∧ B) ⊢ B
-        if isinstance(f, And):
+        if "∧E" in rules and isinstance(f, And):
             and_str = str(f)
             left_str = str(f.left)
             right_str = str(f.right)
@@ -446,6 +474,184 @@ def build_semantic_graph(
                 g.add_edge(
                     and_str, right_str, reason="∧E-R", rule="conjunction_elim_right"
                 )
+
+    # Add additional inference rules for semantic graph
+    for f in formulas:
+        for f2 in formulas:
+            # Conjunction Introduction: A, B ⊢ (A ∧ B)
+            if "∧I" in rules:
+                and_formula = And(f, f2)
+                and_str = str(and_formula)
+                f_str = str(f)
+                f2_str = str(f2)
+                if (
+                    and_str in g
+                    and f_str in g
+                    and f2_str in g
+                    and g.nodes[f_str]["entailed"]
+                    and g.nodes[f2_str]["entailed"]
+                    and g.nodes[and_str]["entailed"]
+                    and not g.nodes[and_str]["is_axiom"]
+                ):
+                    g.add_edge(f_str, and_str, reason="∧I", rule="conjunction_intro")
+                    if f_str != f2_str:
+                        g.add_edge(
+                            f2_str, and_str, reason="∧I", rule="conjunction_intro"
+                        )
+
+            # Disjunction Introduction: A ⊢ (A ∨ B)
+            if "∨I" in rules:
+                or_formula = Or(f, f2)
+                or_str = str(or_formula)
+                f_str = str(f)
+                if (
+                    or_str in g
+                    and f_str in g
+                    and g.nodes[f_str]["entailed"]
+                    and g.nodes[or_str]["entailed"]
+                    and not g.nodes[or_str]["is_axiom"]
+                ):
+                    g.add_edge(f_str, or_str, reason="∨I", rule="disjunction_intro")
+
+        # Double Negation Elimination: ¬¬A ⊢ A
+        if "DNE" in rules and isinstance(f, Not) and isinstance(f.inner, Not):
+            dne_str = str(f)
+            inner_str = str(f.inner.inner)
+            if (
+                dne_str in g
+                and inner_str in g
+                and g.nodes[dne_str]["entailed"]
+                and not g.nodes[inner_str]["is_axiom"]
+            ):
+                g.add_edge(
+                    dne_str, inner_str, reason="DNE", rule="double_negation_elim"
+                )
+
+        # Contraposition: (A → B) ⊢ (¬B → ¬A)
+        if "CP" in rules and isinstance(f, Implies):
+            contra = Implies(Not(f.consequent), Not(f.antecedent))
+            impl_str = str(f)
+            contra_str = str(contra)
+            if (
+                impl_str in g
+                and contra_str in g
+                and g.nodes[impl_str]["entailed"]
+                and not g.nodes[contra_str]["is_axiom"]
+            ):
+                g.add_edge(impl_str, contra_str, reason="CP", rule="contraposition")
+
+        # Material Implication: (A → B) ⊢ (¬A ∨ B)
+        if "MI" in rules and isinstance(f, Implies):
+            mat_impl = Or(Not(f.antecedent), f.consequent)
+            impl_str = str(f)
+            mat_str = str(mat_impl)
+            if (
+                impl_str in g
+                and mat_str in g
+                and g.nodes[impl_str]["entailed"]
+                and not g.nodes[mat_str]["is_axiom"]
+            ):
+                g.add_edge(impl_str, mat_str, reason="MI", rule="material_implication")
+
+        # Reverse Material Implication: (¬A ∨ B) ⊢ (A → B)
+        if "RMI" in rules and isinstance(f, Or) and isinstance(f.left, Not):
+            rev_mat = Implies(f.left.inner, f.right)
+            or_str = str(f)
+            rev_str = str(rev_mat)
+            if (
+                or_str in g
+                and rev_str in g
+                and g.nodes[or_str]["entailed"]
+                and not g.nodes[rev_str]["is_axiom"]
+            ):
+                g.add_edge(or_str, rev_str, reason="RMI", rule="reverse_material_impl")
+
+        # De Morgan's Laws: ¬(A ∧ B) ⊢ (¬A ∨ ¬B)
+        if "DeM" in rules and isinstance(f, Not) and isinstance(f.inner, And):
+            dem_result = Or(Not(f.inner.left), Not(f.inner.right))
+            not_and_str = str(f)
+            dem_str = str(dem_result)
+            if (
+                not_and_str in g
+                and dem_str in g
+                and g.nodes[not_and_str]["entailed"]
+                and not g.nodes[dem_str]["is_axiom"]
+            ):
+                g.add_edge(not_and_str, dem_str, reason="DeM", rule="de_morgan_and")
+
+        # De Morgan's Laws: ¬(A ∨ B) ⊢ (¬A ∧ ¬B)
+        if "DeM" in rules and isinstance(f, Not) and isinstance(f.inner, Or):
+            dem_result = And(Not(f.inner.left), Not(f.inner.right))
+            not_or_str = str(f)
+            dem_str = str(dem_result)
+            if (
+                not_or_str in g
+                and dem_str in g
+                and g.nodes[not_or_str]["entailed"]
+                and not g.nodes[dem_str]["is_axiom"]
+            ):
+                g.add_edge(not_or_str, dem_str, reason="DeM", rule="de_morgan_or")
+
+        # Reverse De Morgan: (¬A ∨ ¬B) ⊢ ¬(A ∧ B)
+        if (
+            "RDeM" in rules
+            and isinstance(f, Or)
+            and isinstance(f.left, Not)
+            and isinstance(f.right, Not)
+        ):
+            rdem_result = Not(And(f.left.inner, f.right.inner))
+            or_not_str = str(f)
+            rdem_str = str(rdem_result)
+            if (
+                or_not_str in g
+                and rdem_str in g
+                and g.nodes[or_not_str]["entailed"]
+                and not g.nodes[rdem_str]["is_axiom"]
+            ):
+                g.add_edge(
+                    or_not_str, rdem_str, reason="RDeM", rule="reverse_de_morgan_and"
+                )
+
+        # Reverse De Morgan: (¬A ∧ ¬B) ⊢ ¬(A ∨ B)
+        if (
+            "RDeM" in rules
+            and isinstance(f, And)
+            and isinstance(f.left, Not)
+            and isinstance(f.right, Not)
+        ):
+            rdem_result = Not(Or(f.left.inner, f.right.inner))
+            and_not_str = str(f)
+            rdem_str = str(rdem_result)
+            if (
+                and_not_str in g
+                and rdem_str in g
+                and g.nodes[and_not_str]["entailed"]
+                and not g.nodes[rdem_str]["is_axiom"]
+            ):
+                g.add_edge(
+                    and_not_str, rdem_str, reason="RDeM", rule="reverse_de_morgan_or"
+                )
+
+    # Add tautologies if LEM or ID rules are enabled
+    if "LEM" in rules or "ID" in rules:
+        for var_name in var_names:
+            v = Var(var_name)
+            # Law of Excluded Middle: ⊢ (A ∨ ¬A)
+            if "LEM" in rules:
+                lem = Or(v, Not(v))
+                lem_str = str(lem)
+                if lem_str in g and g.nodes[lem_str]["tautology"]:
+                    # LEM is a tautology, no premises needed
+                    pass
+
+            # Law of Identity: ⊢ (A → A)
+            if "ID" in rules:
+                id_formula = Implies(v, v)
+                id_str = str(id_formula)
+                if id_str in g and g.nodes[id_str]["tautology"]:
+                    # ID is a tautology, no premises needed
+                    pass
+
     return g
 
 
@@ -494,10 +700,85 @@ def visualize_logic_graph(
     plt.show()
 
 
+def get_available_rules() -> Dict[str, str]:
+    """Return a dictionary of available inference rules and their descriptions.
+
+    Returns
+    -------
+    dict
+        Mapping from rule abbreviation to full description.
+    """
+    return {
+        "MP": "Modus Ponens: (A → B), A ⊢ B",
+        "MT": "Modus Tollens: (A → B), ¬B ⊢ ¬A",
+        "DS": "Disjunctive Syllogism: (A ∨ B), ¬A ⊢ B",
+        "HS": "Hypothetical Syllogism: (A → B), (B → C) ⊢ (A → C)",
+        "∧E": "Conjunction Elimination: (A ∧ B) ⊢ A, (A ∧ B) ⊢ B",
+        "∧I": "Conjunction Introduction: A, B ⊢ (A ∧ B)",
+        "∨I": "Disjunction Introduction: A ⊢ (A ∨ B)",
+        "DNE": "Double Negation Elimination: ¬¬A ⊢ A",
+        "CP": "Contraposition: (A → B) ⊢ (¬B → ¬A)",
+        "MI": "Material Implication: (A → B) ⊢ (¬A ∨ B)",
+        "RMI": "Reverse Material Implication: (¬A ∨ B) ⊢ (A → B)",
+        "DeM": "De Morgan's Laws: ¬(A ∧ B) ⊢ (¬A ∨ ¬B), ¬(A ∨ B) ⊢ (¬A ∧ ¬B)",
+        "RDeM": "Reverse De Morgan's Laws: (¬A ∨ ¬B) ⊢ ¬(A ∧ B), (¬A ∧ ¬B) ⊢ ¬(A ∨ B)",
+        "LEM": "Law of Excluded Middle: ⊢ (A ∨ ¬A)",
+        "ID": "Law of Identity: ⊢ (A → A)",
+    }
+
+
+def get_rule_presets() -> Dict[str, Set[str]]:
+    """Return predefined sets of inference rules for common use cases.
+
+    Returns
+    -------
+    dict
+        Mapping from preset name to set of rule abbreviations.
+    """
+    return {
+        "minimal": {"MP", "∧E", "∧I"},
+        "classical": {"MP", "MT", "DS", "HS", "∧E", "∧I"},
+        "extended": {"MP", "MT", "DS", "HS", "∧E", "∧I", "∨I", "DNE", "CP"},
+        "complete": {
+            "MP",
+            "MT",
+            "DS",
+            "HS",
+            "∧E",
+            "∧I",
+            "∨I",
+            "DNE",
+            "CP",
+            "MI",
+            "RMI",
+            "DeM",
+            "RDeM",
+        },
+        "all": {
+            "MP",
+            "MT",
+            "DS",
+            "HS",
+            "∧E",
+            "∧I",
+            "∨I",
+            "DNE",
+            "CP",
+            "MI",
+            "RMI",
+            "DeM",
+            "RDeM",
+            "LEM",
+            "ID",
+        },
+    }
+
+
 def build_syntactic_graph(
     var_names: Sequence[str],
     axioms: Sequence[Formula],
     max_iterations: int = 3,
+    rules: Set[str] | None = None,
 ) -> Any:
     """Build a directed graph using SYNTACTIC DERIVABILITY (forward-chaining).
 
@@ -517,12 +798,35 @@ def build_syntactic_graph(
     max_iterations:
         Maximum number of iterations for rule application.
         Each iteration applies all possible rules to current knowledge base.
+    rules:
+        Set of rule names to apply. If None, applies all available rules.
+        Available rules: 'MP', 'MT', 'DS', 'HS', '∧E', '∧I', '∨I', 'DNE',
+        'CP', 'MI', 'RMI', 'DeM', 'RDeM', 'LEM', 'ID'
 
     Returns
     -------
     NetworkX DiGraph with nodes representing formulas and edges showing
     inference steps from premises to conclusions.
     """
+    # Default: use all rules if none specified
+    if rules is None:
+        rules = {
+            "MP",
+            "MT",
+            "DS",
+            "HS",
+            "∧E",
+            "∧I",
+            "∨I",
+            "DNE",
+            "CP",
+            "MI",
+            "RMI",
+            "DeM",
+            "RDeM",
+            "LEM",
+            "ID",
+        }
     g = nx.DiGraph()
 
     # Initialize with axioms
@@ -547,7 +851,7 @@ def build_syntactic_graph(
         # Apply inference rules to formulas in knowledge base
         for f in knowledge_base:
             # Modus Ponens: If we have (A → B) and A, derive B
-            if isinstance(f, Implies):
+            if "MP" in rules and isinstance(f, Implies):
                 if f.antecedent in knowledge_base:
                     conclusion = f.consequent
                     if conclusion not in knowledge_base:
@@ -572,7 +876,7 @@ def build_syntactic_graph(
                         )
 
             # Conjunction Elimination: If we have (A ∧ B), derive A and B
-            if isinstance(f, And):
+            if "∧E" in rules and isinstance(f, And):
                 for part, label in [(f.left, "∧E-L"), (f.right, "∧E-R")]:
                     if part not in knowledge_base:
                         iteration_new.add(part)
@@ -597,7 +901,7 @@ def build_syntactic_graph(
         for i, f1 in enumerate(kb_list):
             for f2 in kb_list[i:]:
                 # Modus Tollens: (A → B) and ¬B, derive ¬A
-                if isinstance(f1, Implies) and isinstance(f2, Not):
+                if "MT" in rules and isinstance(f1, Implies) and isinstance(f2, Not):
                     if f2.inner == f1.consequent:
                         conclusion = Not(f1.antecedent)
                         if conclusion not in knowledge_base:
@@ -620,7 +924,7 @@ def build_syntactic_graph(
                             )
 
                 # Symmetric case for MT
-                if isinstance(f2, Implies) and isinstance(f1, Not):
+                if "MT" in rules and isinstance(f2, Implies) and isinstance(f1, Not):
                     if f1.inner == f2.consequent:
                         conclusion = Not(f2.antecedent)
                         if conclusion not in knowledge_base:
@@ -643,7 +947,7 @@ def build_syntactic_graph(
                             )
 
                 # Disjunctive Syllogism: (A ∨ B) and ¬A, derive B
-                if isinstance(f1, Or) and isinstance(f2, Not):
+                if "DS" in rules and isinstance(f1, Or) and isinstance(f2, Not):
                     if f2.inner == f1.left:
                         conclusion = f1.right
                         if conclusion not in knowledge_base:
@@ -686,7 +990,7 @@ def build_syntactic_graph(
                             )
 
                 # Symmetric cases for DS
-                if isinstance(f2, Or) and isinstance(f1, Not):
+                if "DS" in rules and isinstance(f2, Or) and isinstance(f1, Not):
                     if f1.inner == f2.left:
                         conclusion = f2.right
                         if conclusion not in knowledge_base:
@@ -729,7 +1033,11 @@ def build_syntactic_graph(
                             )
 
                 # Hypothetical Syllogism: (A → B) and (B → C), derive (A → C)
-                if isinstance(f1, Implies) and isinstance(f2, Implies):
+                if (
+                    "HS" in rules
+                    and isinstance(f1, Implies)
+                    and isinstance(f2, Implies)
+                ):
                     if f1.consequent == f2.antecedent:
                         conclusion = Implies(f1.antecedent, f2.consequent)
                         if conclusion not in knowledge_base:
@@ -753,7 +1061,11 @@ def build_syntactic_graph(
 
                 # Conjunction Introduction: A and B, derive (A ∧ B)
                 # (Only add if both are simple enough to avoid explosion)
-                if not isinstance(f1, And) and not isinstance(f2, And):
+                if (
+                    "∧I" in rules
+                    and not isinstance(f1, And)
+                    and not isinstance(f2, And)
+                ):
                     conclusion = And(f1, f2)
                     if conclusion not in knowledge_base and len(str(conclusion)) < 50:
                         iteration_new.add(conclusion)
@@ -780,6 +1092,244 @@ def build_syntactic_graph(
                                 reason="∧I",
                                 rule="conjunction_intro",
                             )
+
+        # Single-formula transformations (apply to all formulas in knowledge base)
+        for f in knowledge_base:
+            # Disjunction Introduction: A ⊢ (A ∨ B) for any B in knowledge_base
+            # Only add simple cases to avoid explosion
+            if "∨I" in rules:
+                for other in list(knowledge_base)[
+                    :5
+                ]:  # Limit to avoid exponential growth
+                    if str(f) != str(other) and len(str(Or(f, other))) < 50:
+                        conclusion = Or(f, other)
+                        if conclusion not in knowledge_base:
+                            iteration_new.add(conclusion)
+                            tv = formula_truth_vector(conclusion, var_names)
+                            g.add_node(
+                                str(conclusion),
+                                truth_vector=tv,
+                                tautology=all(bit == 1 for bit in tv),
+                                entailed=True,
+                                is_axiom=False,
+                                generation=iteration + 1,
+                            )
+                            g.add_edge(
+                                str(f),
+                                str(conclusion),
+                                reason="∨I",
+                                rule="disjunction_intro",
+                            )
+
+            # Double Negation Elimination: ¬¬A ⊢ A
+            if "DNE" in rules and isinstance(f, Not) and isinstance(f.inner, Not):
+                conclusion = f.inner.inner
+                if conclusion not in knowledge_base:
+                    iteration_new.add(conclusion)
+                    tv = formula_truth_vector(conclusion, var_names)
+                    g.add_node(
+                        str(conclusion),
+                        truth_vector=tv,
+                        tautology=all(bit == 1 for bit in tv),
+                        entailed=True,
+                        is_axiom=False,
+                        generation=iteration + 1,
+                    )
+                    g.add_edge(
+                        str(f),
+                        str(conclusion),
+                        reason="DNE",
+                        rule="double_negation_elim",
+                    )
+
+            # Contraposition: (A → B) ⊢ (¬B → ¬A)
+            if "CP" in rules and isinstance(f, Implies):
+                conclusion = Implies(Not(f.consequent), Not(f.antecedent))
+                if conclusion not in knowledge_base:
+                    iteration_new.add(conclusion)
+                    tv = formula_truth_vector(conclusion, var_names)
+                    g.add_node(
+                        str(conclusion),
+                        truth_vector=tv,
+                        tautology=all(bit == 1 for bit in tv),
+                        entailed=True,
+                        is_axiom=False,
+                        generation=iteration + 1,
+                    )
+                    g.add_edge(
+                        str(f),
+                        str(conclusion),
+                        reason="CP",
+                        rule="contraposition",
+                    )
+
+            # Material Implication: (A → B) ⊢ (¬A ∨ B)
+            if "MI" in rules and isinstance(f, Implies):
+                conclusion = Or(Not(f.antecedent), f.consequent)
+                if conclusion not in knowledge_base and len(str(conclusion)) < 50:
+                    iteration_new.add(conclusion)
+                    tv = formula_truth_vector(conclusion, var_names)
+                    g.add_node(
+                        str(conclusion),
+                        truth_vector=tv,
+                        tautology=all(bit == 1 for bit in tv),
+                        entailed=True,
+                        is_axiom=False,
+                        generation=iteration + 1,
+                    )
+                    g.add_edge(
+                        str(f),
+                        str(conclusion),
+                        reason="MI",
+                        rule="material_implication",
+                    )
+
+            # Reverse Material Implication: (¬A ∨ B) ⊢ (A → B)
+            if "RMI" in rules and isinstance(f, Or) and isinstance(f.left, Not):
+                conclusion = Implies(f.left.inner, f.right)
+                if conclusion not in knowledge_base:
+                    iteration_new.add(conclusion)
+                    tv = formula_truth_vector(conclusion, var_names)
+                    g.add_node(
+                        str(conclusion),
+                        truth_vector=tv,
+                        tautology=all(bit == 1 for bit in tv),
+                        entailed=True,
+                        is_axiom=False,
+                        generation=iteration + 1,
+                    )
+                    g.add_edge(
+                        str(f),
+                        str(conclusion),
+                        reason="RMI",
+                        rule="reverse_material_impl",
+                    )
+
+            # De Morgan's Laws: ¬(A ∧ B) ⊢ (¬A ∨ ¬B)
+            if "DeM" in rules and isinstance(f, Not) and isinstance(f.inner, And):
+                conclusion = Or(Not(f.inner.left), Not(f.inner.right))
+                if conclusion not in knowledge_base and len(str(conclusion)) < 50:
+                    iteration_new.add(conclusion)
+                    tv = formula_truth_vector(conclusion, var_names)
+                    g.add_node(
+                        str(conclusion),
+                        truth_vector=tv,
+                        tautology=all(bit == 1 for bit in tv),
+                        entailed=True,
+                        is_axiom=False,
+                        generation=iteration + 1,
+                    )
+                    g.add_edge(
+                        str(f),
+                        str(conclusion),
+                        reason="DeM",
+                        rule="de_morgan_and",
+                    )
+
+            # De Morgan's Laws: ¬(A ∨ B) ⊢ (¬A ∧ ¬B)
+            if "DeM" in rules and isinstance(f, Not) and isinstance(f.inner, Or):
+                conclusion = And(Not(f.inner.left), Not(f.inner.right))
+                if conclusion not in knowledge_base and len(str(conclusion)) < 50:
+                    iteration_new.add(conclusion)
+                    tv = formula_truth_vector(conclusion, var_names)
+                    g.add_node(
+                        str(conclusion),
+                        truth_vector=tv,
+                        tautology=all(bit == 1 for bit in tv),
+                        entailed=True,
+                        is_axiom=False,
+                        generation=iteration + 1,
+                    )
+                    g.add_edge(
+                        str(f),
+                        str(conclusion),
+                        reason="DeM",
+                        rule="de_morgan_or",
+                    )
+
+            # Reverse De Morgan: (¬A ∨ ¬B) ⊢ ¬(A ∧ B)
+            if "RDeM" in rules and (
+                isinstance(f, Or)
+                and isinstance(f.left, Not)
+                and isinstance(f.right, Not)
+            ):
+                conclusion = Not(And(f.left.inner, f.right.inner))
+                if conclusion not in knowledge_base and len(str(conclusion)) < 50:
+                    iteration_new.add(conclusion)
+                    tv = formula_truth_vector(conclusion, var_names)
+                    g.add_node(
+                        str(conclusion),
+                        truth_vector=tv,
+                        tautology=all(bit == 1 for bit in tv),
+                        entailed=True,
+                        is_axiom=False,
+                        generation=iteration + 1,
+                    )
+                    g.add_edge(
+                        str(f),
+                        str(conclusion),
+                        reason="RDeM",
+                        rule="reverse_de_morgan_and",
+                    )
+
+            # Reverse De Morgan: (¬A ∧ ¬B) ⊢ ¬(A ∨ B)
+            if "RDeM" in rules and (
+                isinstance(f, And)
+                and isinstance(f.left, Not)
+                and isinstance(f.right, Not)
+            ):
+                conclusion = Not(Or(f.left.inner, f.right.inner))
+                if conclusion not in knowledge_base and len(str(conclusion)) < 50:
+                    iteration_new.add(conclusion)
+                    tv = formula_truth_vector(conclusion, var_names)
+                    g.add_node(
+                        str(conclusion),
+                        truth_vector=tv,
+                        tautology=all(bit == 1 for bit in tv),
+                        entailed=True,
+                        is_axiom=False,
+                        generation=iteration + 1,
+                    )
+                    g.add_edge(
+                        str(f),
+                        str(conclusion),
+                        reason="RDeM",
+                        rule="reverse_de_morgan_or",
+                    )
+
+        # Generate basic tautologies for each variable (only in first iteration)
+        if iteration == 0:
+            for var_name in var_names:
+                v = Var(var_name)
+                # Law of Excluded Middle: A ∨ ¬A
+                if "LEM" in rules:
+                    tautology_lem = Or(v, Not(v))
+                    if tautology_lem not in knowledge_base:
+                        iteration_new.add(tautology_lem)
+                        tv = formula_truth_vector(tautology_lem, var_names)
+                        g.add_node(
+                            str(tautology_lem),
+                            truth_vector=tv,
+                            tautology=True,
+                            entailed=True,
+                            is_axiom=False,
+                            generation=iteration + 1,
+                        )
+
+                # Law of Identity: A → A
+                if "ID" in rules:
+                    tautology_id = Implies(v, v)
+                    if tautology_id not in knowledge_base:
+                        iteration_new.add(tautology_id)
+                        tv = formula_truth_vector(tautology_id, var_names)
+                        g.add_node(
+                            str(tautology_id),
+                            truth_vector=tv,
+                            tautology=True,
+                            entailed=True,
+                            is_axiom=False,
+                            generation=iteration + 1,
+                        )
 
         if not iteration_new:
             break
@@ -863,6 +1413,14 @@ def export_to_html(
         "HS": "#34495E",  # dark gray-blue - hypothetical syllogism
         "∧E-L": "#3F51B5",  # indigo - conjunction elim left
         "∧E-R": "#795548",  # brown - conjunction elim right
+        "∧I": "#9E9E9E",  # grey - conjunction intro
+        "∨I": "#757575",  # dark grey - disjunction intro
+        "DNE": "#673AB7",  # deep purple - double negation elimination
+        "CP": "#FF5722",  # deep orange - contraposition
+        "MI": "#FFC107",  # amber - material implication
+        "RMI": "#FFEB3B",  # yellow - reverse material implication
+        "DeM": "#8BC34A",  # light green - de morgan's laws
+        "RDeM": "#CDDC39",  # lime - reverse de morgan's laws
     }
 
     for source, target, data in g.edges(data=True):

@@ -46,6 +46,16 @@ This library provides two fundamentally different approaches to logic:
   - Hypothetical Syllogism (HS): `(A → B), (B → C) ⊢ (A → C)`
   - Conjunction Elimination (∧E): `(A ∧ B) ⊢ A, B`
   - Conjunction Introduction (∧I): `A, B ⊢ (A ∧ B)`
+  - Disjunction Introduction (∨I): `A ⊢ (A ∨ B)`
+  - Double Negation Elimination (DNE): `¬¬A ⊢ A`
+  - Contraposition (CP): `(A → B) ⊢ (¬B → ¬A)`
+  - Material Implication (MI): `(A → B) ⊢ (¬A ∨ B)`
+  - Reverse Material Implication (RMI): `(¬A ∨ B) ⊢ (A → B)`
+  - De Morgan's Laws (DeM): `¬(A ∧ B) ⊢ (¬A ∨ ¬B)`, `¬(A ∨ B) ⊢ (¬A ∧ ¬B)`
+  - Reverse De Morgan's (RDeM): `(¬A ∨ ¬B) ⊢ ¬(A ∧ B)`, `(¬A ∧ ¬B) ⊢ ¬(A ∨ B)`
+  - Law of Excluded Middle (LEM): `⊢ (A ∨ ¬A)`
+  - Law of Identity (ID): `⊢ (A → A)`
+- **Customizable Rule Sets**: Choose which inference rules to apply (minimal, classical, extended, complete, or custom)
 - **Interactive Visualization**: Export to HTML with pyvis for draggable, zoomable graphs
 - **Static Visualization**: Matplotlib-based plotting for notebooks and scripts
 
@@ -69,7 +79,8 @@ Requirements:
 
 ```python
 from calculus_ratiocinator import (
-    Var, Implies, build_syntactic_graph, export_to_html
+    Var, Implies, build_syntactic_graph, export_to_html,
+    get_available_rules, get_rule_presets
 )
 
 # Define axioms: p, (p → q)
@@ -90,11 +101,51 @@ export_to_html(g, "syntactic_proof.html")
 # Result: Shows derivation of q via Modus Ponens with clear proof path
 ```
 
+### Selecting Inference Rules
+
+You can customize which inference rules to use:
+
+```python
+# View available rules
+rules = get_available_rules()
+for abbr, desc in rules.items():
+    print(f"{abbr}: {desc}")
+
+# Use a predefined preset
+presets = get_rule_presets()
+# Available presets: 'minimal', 'classical', 'extended', 'complete', 'all'
+
+# Build graph with only classical rules
+g = build_syntactic_graph(
+    var_names=["p", "q"],
+    axioms=axioms,
+    max_iterations=3,
+    rules=presets['classical']  # MP, MT, DS, HS, ∧E, ∧I
+)
+
+# Or create a custom rule set
+custom_rules = {'MP', 'DNE', 'LEM', '∧E'}
+g = build_syntactic_graph(
+    var_names=["p", "q"],
+    axioms=axioms,
+    max_iterations=2,
+    rules=custom_rules
+)
+```
+
+**Rule Presets:**
+
+- `minimal`: MP, ∧E, ∧I (basic proof capability)
+- `classical`: MP, MT, DS, HS, ∧E, ∧I (traditional logic)
+- `extended`: Adds ∨I, DNE, CP (more derivations)
+- `complete`: Adds MI, RMI, DeM, RDeM (full transformations)
+- `all`: Every available rule including LEM and ID (maximum power)
+
 ### Semantic Entailment (Truth-Based Approach)
 
 ```python
 from calculus_ratiocinator import (
-    Var, Implies, build_semantic_graph, export_to_html
+    Var, Implies, build_semantic_graph, export_to_html, get_rule_presets
 )
 
 # Generate all formulas up to a depth, check which are semantically entailed
@@ -107,6 +158,16 @@ g = build_semantic_graph(
 
 export_to_html(g, "semantic_entailment.html")
 # Result: Shows ALL formulas true under axioms, including tautologies
+
+# You can also select rules for semantic graphs
+presets = get_rule_presets()
+g = build_semantic_graph(
+    var_names=["p", "q"],
+    axioms=axioms,
+    max_depth=2,
+    max_nodes=300,
+    rules=presets['classical']  # Only show edges for classical rules
+)
 ```
 
 Open `syntactic_proof.html` or `semantic_entailment.html` in your browser to:
@@ -132,21 +193,31 @@ Open `syntactic_proof.html` or `semantic_entailment.html` in your browser to:
 - **Dark Gray-Blue**: Hypothetical Syllogism (HS)
 - **Indigo**: Conjunction Elimination Left (∧E-L)
 - **Brown**: Conjunction Elimination Right (∧E-R)
-- **Gray**: Conjunction Introduction (∧I)
+- **Grey**: Conjunction Introduction (∧I)
+- **Dark Grey**: Disjunction Introduction (∨I)
+- **Deep Purple**: Double Negation Elimination (DNE)
+- **Deep Orange**: Contraposition (CP)
+- **Amber**: Material Implication (MI)
+- **Yellow**: Reverse Material Implication (RMI)
+- **Light Green**: De Morgan's Laws (DeM)
+- **Lime**: Reverse De Morgan's (RDeM)
 
 ### Main Functions
 
-#### `build_syntactic_graph(var_names, axioms, max_iterations)`
+#### `build_syntactic_graph(var_names, axioms, max_iterations, rules)`
 
 Build a directed graph using **syntactic derivability** (proof-based, forward-chaining).
 
-Start with axioms and iteratively apply inference rules to generate new statements that can be proven step-by-step. Only generates formulas derivable through the implemented inference rules.
+Start with axioms and iteratively apply inference rules to generate new statements that can be proven step-by-step. Only generates formulas derivable through the selected inference rules.
 
 **Parameters:**
 
 - `var_names`: List of variable names
 - `axioms`: List of Formula objects representing axioms
 - `max_iterations`: Maximum iterations for rule application (default: 3)
+- `rules`: Set of rule abbreviations to apply, or None for all rules (default: None)
+  - Use `get_rule_presets()` for predefined sets
+  - Use `get_available_rules()` to see all options
 
 **Returns:** NetworkX DiGraph with node attributes:
 
@@ -156,9 +227,9 @@ Start with axioms and iteratively apply inference rules to generate new statemen
 - `is_axiom`: Boolean
 - `generation`: Integer (0 for axioms, 1+ for derived)
 
-And edges showing inference steps with `reason` (MP, MT, DS, HS, ∧E-L, ∧E-R, ∧I) and optional `via` (supporting formula).
+And edges showing inference steps with `reason` (MP, MT, DS, HS, ∧E-L, ∧E-R, ∧I, ∨I, DNE, CP, MI, RMI, DeM, RDeM) and optional `via` (supporting formula).
 
-#### `build_semantic_graph(var_names, axioms, max_depth, max_nodes)`
+#### `build_semantic_graph(var_names, axioms, max_depth, max_nodes, rules)`
 
 Build a directed graph using **semantic entailment** (truth-based).
 
@@ -170,6 +241,7 @@ Generate all formulas up to a depth, then check which are semantically entailed 
 - `axioms`: List of Formula objects representing axioms
 - `max_depth`: Formula enumeration depth (default: 2)
 - `max_nodes`: Optional limit on graph size with intelligent sampling (prioritizes axioms → entailed → tautologies → false statements)
+- `rules`: Set of rule abbreviations to apply for edges, or None for all rules (default: None)
 
 **Returns:** NetworkX DiGraph with node attributes:
 
@@ -178,7 +250,7 @@ Generate all formulas up to a depth, then check which are semantically entailed 
 - `entailed`: Boolean (semantic consequence of axioms)
 - `is_axiom`: Boolean
 
-And edges with inference rule labels (MP, MT, DS, HS, ∧E-L, ∧E-R).
+And edges with inference rule labels (MP, MT, DS, HS, ∧E-L, ∧E-R, ∨I, DNE, CP, MI, RMI, DeM, RDeM) based on selected rules.
 
 #### `export_to_html(g, output_file, height, width, notebook)`
 
