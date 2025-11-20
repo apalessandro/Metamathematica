@@ -1409,18 +1409,18 @@ def export_to_html(
     edge_color_map = {
         "MP": "#E91E63",  # hot pink - modus ponens
         "MT": "#9C27B0",  # deep purple - modus tollens
-        "DS": "#FF9800",  # amber - disjunctive syllogism
+        "DS": "#FF6F00",  # dark orange - disjunctive syllogism
         "HS": "#34495E",  # dark gray-blue - hypothetical syllogism
         "∧E-L": "#3F51B5",  # indigo - conjunction elim left
         "∧E-R": "#795548",  # brown - conjunction elim right
-        "∧I": "#9E9E9E",  # grey - conjunction intro
-        "∨I": "#757575",  # dark grey - disjunction intro
-        "DNE": "#673AB7",  # deep purple - double negation elimination
-        "CP": "#FF5722",  # deep orange - contraposition
-        "MI": "#FFC107",  # amber - material implication
-        "RMI": "#FFEB3B",  # yellow - reverse material implication
-        "DeM": "#8BC34A",  # light green - de morgan's laws
-        "RDeM": "#CDDC39",  # lime - reverse de morgan's laws
+        "∧I": "#607D8B",  # blue grey - conjunction intro
+        "∨I": "#424242",  # dark grey - disjunction intro
+        "DNE": "#7B1FA2",  # purple - double negation elimination
+        "CP": "#D84315",  # deep orange red - contraposition
+        "MI": "#F57C00",  # orange - material implication
+        "RMI": "#FDD835",  # bright yellow - reverse material implication
+        "DeM": "#689F38",  # green - de morgan's laws
+        "RDeM": "#AFB42B",  # lime green - reverse de morgan's laws
     }
 
     for source, target, data in g.edges(data=True):

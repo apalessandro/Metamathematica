@@ -189,18 +189,18 @@ Open `syntactic_proof.html` or `semantic_entailment.html` in your browser to:
 
 - **Hot Pink**: Modus Ponens (MP)
 - **Deep Purple**: Modus Tollens (MT)
-- **Amber**: Disjunctive Syllogism (DS)
+- **Dark Orange**: Disjunctive Syllogism (DS)
 - **Dark Gray-Blue**: Hypothetical Syllogism (HS)
 - **Indigo**: Conjunction Elimination Left (∧E-L)
 - **Brown**: Conjunction Elimination Right (∧E-R)
-- **Grey**: Conjunction Introduction (∧I)
+- **Blue Grey**: Conjunction Introduction (∧I)
 - **Dark Grey**: Disjunction Introduction (∨I)
-- **Deep Purple**: Double Negation Elimination (DNE)
-- **Deep Orange**: Contraposition (CP)
-- **Amber**: Material Implication (MI)
-- **Yellow**: Reverse Material Implication (RMI)
-- **Light Green**: De Morgan's Laws (DeM)
-- **Lime**: Reverse De Morgan's (RDeM)
+- **Purple**: Double Negation Elimination (DNE)
+- **Deep Orange Red**: Contraposition (CP)
+- **Orange**: Material Implication (MI)
+- **Bright Yellow**: Reverse Material Implication (RMI)
+- **Green**: De Morgan's Laws (DeM)
+- **Lime Green**: Reverse De Morgan's (RDeM)
 
 ### Main Functions
 
