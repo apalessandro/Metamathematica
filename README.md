@@ -8,7 +8,7 @@ A Python toolkit for visualizing propositional logic as interactive graphs. Buil
 
 This library provides two fundamentally different approaches to logic:
 
-#### Syntactic Derivability (Proof-Based)**
+#### Syntactic Derivability (Proof-Based)
 
 - Uses `build_syntactic_graph()`
 - Starts with axioms and applies **inference rules** step-by-step
